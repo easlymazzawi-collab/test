@@ -11,7 +11,9 @@ load_dotenv()
 def _require(key: str) -> str:
     value = os.getenv(key)
     if not value:
-        raise RuntimeError(f"Required environment variable '{key}' is not set. Check your .env file.")
+        raise RuntimeError(
+            f"Required environment variable '{key}' is not set. Check your .env file."
+        )
     return value
 
 
@@ -28,11 +30,19 @@ API_HASH: str = _require("API_HASH")
 PHONE_NUMBER: str = _require("PHONE_NUMBER")
 SESSION_NAME: str = _optional("SESSION_NAME", "media_crawler")
 
-# ── Chat / topic IDs ───────────────────────────────────────────────────────────
+# ── Source chat ────────────────────────────────────────────────────────────────
 SOURCE_CHAT_ID: int = int(_require("SOURCE_CHAT_ID"))
-SOURCE_TOPIC_ID: int = int(_require("SOURCE_TOPIC_ID"))
 
+# SOURCE_TOPIC_ID is OPTIONAL.
+# • If set  → clone only that one topic (single-topic mode).
+# • If empty → clone ALL topics in the supergroup (all-topics mode).
+_src_topic_raw = _optional("SOURCE_TOPIC_ID", "")
+SOURCE_TOPIC_ID: int | None = int(_src_topic_raw) if _src_topic_raw.strip() else None
+
+# ── Destination chat ───────────────────────────────────────────────────────────
 DEST_CHAT_ID: int = int(_require("DEST_CHAT_ID"))
+
+# DEST_TOPIC_ID: only used in single-topic mode.
 _dest_topic_raw = _optional("DEST_TOPIC_ID", "")
 DEST_TOPIC_ID: int | None = int(_dest_topic_raw) if _dest_topic_raw.strip() else None
 
