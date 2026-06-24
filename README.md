@@ -52,7 +52,7 @@ Người xem bấm **▶️** → bot gửi video gốc ngay vào chat.
 ```bat
 git clone https://github.com/easlymazzawi-collab/test.git
 cd test
-pip install python-telegram-bot==21.6 pyrogram==2.0.106 python-dotenv==1.0.1 aiosqlite==0.20.0 Pillow==10.4.0
+pip install -r requirements.txt
 ```
 
 ---

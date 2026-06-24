@@ -1,6 +1,5 @@
 python-telegram-bot==21.6
 pyrogram==2.0.106
-TgCrypto==1.2.5  ; platform_python_implementation != "CPython"  # optional C speed-up (needs python3-dev)
 python-dotenv==1.0.1
 aiosqlite==0.20.0
 Pillow==10.4.0
