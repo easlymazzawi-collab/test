@@ -1137,6 +1137,16 @@ async function send(event) {
       : await createAgent(promptText, promptImages);
 
     conversation.runId = run?.id || conversation.runId;
+
+    if (!/^run-/.test(conversation.runId || "") && conversation.agentId) {
+      const agent = await cursorJson(
+        `/v1/agents/${encodeURIComponent(conversation.agentId)}`,
+        undefined,
+        "GET",
+      );
+      if (/^run-/.test(agent?.latestRunId || "")) conversation.runId = agent.latestRunId;
+    }
+
     saveConversations();
     updateMeta();
 
