@@ -532,21 +532,23 @@
   <div class="panel">
     <h2>⚙️ Cài đặt</h2>
 
-    <!-- Cursor notice -->
+    <!-- Cursor = Claude notice -->
     <div id="cursor-notice" style="display:none; background:rgba(124,111,247,0.08); border:1px solid rgba(124,111,247,0.3); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px; line-height:1.6; color:#c0bdf8;">
-      <strong>⚠️ Cursor IDE không có API công khai</strong><br>
-      Cursor dùng giao thức nội bộ riêng, không thể gọi trực tiếp từ trình duyệt.<br>
-      👉 Dùng <strong>OpenRouter</strong> để truy cập GPT-4o, Claude, Gemini... với 1 API key — nhiều model <strong>miễn phí</strong>.<br>
-      <a href="https://openrouter.ai/keys" target="_blank" style="color:#9b96ff; text-decoration:underline;">Lấy API key miễn phí tại openrouter.ai/keys →</a>
+      <strong>✦ AI trong Cursor chính là Claude của Anthropic</strong><br>
+      Cursor dùng Claude (Sonnet/Opus) làm nền tảng chat. Để chat với AI giống hệt Cursor, bạn cần <strong>Claude API key</strong> từ Anthropic.<br><br>
+      <strong>Cách lấy Claude API key (miễn phí $5 credit):</strong><br>
+      1. Vào <a href="https://console.anthropic.com" target="_blank" style="color:#9b96ff">console.anthropic.com</a> → Đăng ký<br>
+      2. Vào <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#9b96ff">Settings → API Keys</a> → Create Key<br>
+      3. Dán key vào ô bên dưới → Lưu<br><br>
+      <em style="color:#9b96ff">Hoặc dùng OpenRouter nếu muốn nhiều model + có Free tier.</em>
     </div>
 
     <div class="field">
       <label>Nhà cung cấp (Provider)</label>
       <select id="provider">
-        <option value="openrouter">⭐ OpenRouter — nhiều model, có Free (khuyên dùng)</option>
+        <option value="anthropic">✦ Cursor AI = Claude (Anthropic) ← dùng cái này</option>
+        <option value="openrouter">⭐ OpenRouter — nhiều model, có Free</option>
         <option value="openai">OpenAI (GPT-4o, o1...)</option>
-        <option value="anthropic">Anthropic Claude</option>
-        <option value="cursor_note">Cursor IDE ← xem giải thích</option>
         <option value="custom">Custom endpoint</option>
       </select>
     </div>
@@ -555,7 +557,7 @@
 
     <div class="field" id="apikey-field">
       <label id="apikey-label">API Key</label>
-      <input type="password" id="api-key" placeholder="sk-or-v1-..." autocomplete="off" />
+      <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off" />
       <div id="apikey-hint" style="font-size:11.5px; color:var(--text-dim); margin-top:5px;"></div>
     </div>
 
@@ -586,7 +588,7 @@
   <div class="empty-state" id="empty-state">
     <div class="empty-icon">✦</div>
     <h2>Bắt đầu cuộc trò chuyện</h2>
-    <p>Nhấn <strong>⚙️</strong> → chọn <strong>OpenRouter</strong> → lấy key miễn phí tại <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent-hover)">openrouter.ai/keys</a>.<br>Sau đó chọn model bên dưới và bắt đầu chat. Có thể đính kèm ảnh và file.</p>
+    <p>Nhấn <strong>⚙️</strong> → lấy <strong>Claude API key</strong> tại <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent-hover)">console.anthropic.com</a> (miễn phí $5 credit).<br>Claude = AI dùng trong Cursor. Có thể đính kèm ảnh và file.</p>
     <div class="suggestions">
       <div class="suggest-chip" onclick="suggest(this)">Giải thích về AI là gì?</div>
       <div class="suggest-chip" onclick="suggest(this)">Viết code Python đọc file CSV</div>
@@ -647,28 +649,27 @@ const PROVIDERS = {
 };
 
 const MODEL_PRESETS = [
-  { group: 'OpenAI', provider: 'openai', items: [
-    { id: 'gpt-4o',           name: 'GPT-4o',         tag: 'Tốt nhất' },
-    { id: 'gpt-4o-mini',      name: 'GPT-4o Mini',    tag: 'Nhanh & rẻ' },
-    { id: 'gpt-4-turbo',      name: 'GPT-4 Turbo',    tag: '' },
-    { id: 'gpt-3.5-turbo',    name: 'GPT-3.5 Turbo',  tag: 'Tiết kiệm' },
-    { id: 'o1',               name: 'o1',              tag: 'Lý luận' },
-    { id: 'o1-mini',          name: 'o1 Mini',         tag: 'Lý luận' },
-  ]},
-  { group: 'Anthropic Claude', provider: 'anthropic', items: [
+  { group: '✦ Cursor AI = Claude (Anthropic)', provider: 'anthropic', items: [
+    { id: 'claude-sonnet-4-5',           name: 'Claude Sonnet 4.5',     tag: 'Cursor dùng cái này' },
     { id: 'claude-opus-4-5',             name: 'Claude Opus 4.5',       tag: 'Mạnh nhất' },
-    { id: 'claude-sonnet-4-5',           name: 'Claude Sonnet 4.5',     tag: 'Cân bằng' },
     { id: 'claude-3-5-sonnet-20241022',  name: 'Claude 3.5 Sonnet',     tag: '' },
     { id: 'claude-3-5-haiku-20241022',   name: 'Claude 3.5 Haiku',      tag: 'Nhanh' },
   ]},
-  { group: 'OpenRouter', provider: 'openrouter', items: [
-    { id: 'openai/gpt-4o',                            name: 'GPT-4o',           tag: '' },
-    { id: 'anthropic/claude-3.5-sonnet',              name: 'Claude 3.5',       tag: '' },
-    { id: 'google/gemini-pro-1.5',                    name: 'Gemini 1.5 Pro',   tag: '' },
-    { id: 'google/gemini-flash-1.5',                  name: 'Gemini 1.5 Flash', tag: 'Nhanh' },
-    { id: 'meta-llama/llama-3.1-70b-instruct',        name: 'Llama 3.1 70B',    tag: 'Free' },
-    { id: 'mistralai/mistral-7b-instruct',            name: 'Mistral 7B',       tag: 'Free' },
-    { id: 'deepseek/deepseek-r1',                     name: 'DeepSeek R1',      tag: 'Lý luận' },
+  { group: 'OpenRouter (1 key dùng nhiều model)', provider: 'openrouter', items: [
+    { id: 'anthropic/claude-3.5-sonnet',              name: 'Claude 3.5 Sonnet', tag: 'Claude' },
+    { id: 'openai/gpt-4o',                            name: 'GPT-4o',            tag: '' },
+    { id: 'google/gemini-flash-1.5',                  name: 'Gemini 1.5 Flash',  tag: 'Nhanh' },
+    { id: 'google/gemini-pro-1.5',                    name: 'Gemini 1.5 Pro',    tag: '' },
+    { id: 'meta-llama/llama-3.1-70b-instruct',        name: 'Llama 3.1 70B',     tag: 'Free' },
+    { id: 'mistralai/mistral-7b-instruct',            name: 'Mistral 7B',        tag: 'Free' },
+    { id: 'deepseek/deepseek-r1',                     name: 'DeepSeek R1',       tag: 'Free' },
+  ]},
+  { group: 'OpenAI', provider: 'openai', items: [
+    { id: 'gpt-4o',        name: 'GPT-4o',        tag: 'Tốt nhất' },
+    { id: 'gpt-4o-mini',   name: 'GPT-4o Mini',   tag: 'Nhanh & rẻ' },
+    { id: 'o1',            name: 'o1',             tag: 'Lý luận' },
+    { id: 'o1-mini',       name: 'o1 Mini',        tag: 'Lý luận' },
+    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', tag: 'Tiết kiệm' },
   ]},
 ];
 
@@ -676,9 +677,9 @@ const MODEL_PRESETS = [
 // STATE
 // ═══════════════════════════════════════════════════════════════════════════════
 let cfg = JSON.parse(localStorage.getItem('ai_chat_cfg') || 'null') || {
-  provider: 'openrouter',
+  provider: 'anthropic',
   apiKey: '',
-  model: 'openai/gpt-4o',
+  model: 'claude-sonnet-4-5',
   customUrl: '',
   systemPrompt: '',
   temperature: 0.7,
@@ -749,6 +750,11 @@ document.getElementById('model-picker').addEventListener('click', e => e.stopPro
 // SETTINGS
 // ═══════════════════════════════════════════════════════════════════════════════
 const PROVIDER_INFO = {
+  anthropic: {
+    label: 'Claude API Key',
+    placeholder: 'sk-ant-...',
+    hint: '🔑 Lấy miễn phí tại <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent-hover)">console.anthropic.com/settings/keys</a> (có $5 credit khi đăng ký)',
+  },
   openrouter: {
     label: 'API Key (OpenRouter)',
     placeholder: 'sk-or-v1-...',
@@ -759,12 +765,6 @@ const PROVIDER_INFO = {
     placeholder: 'sk-...',
     hint: '🔑 Lấy tại <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--accent-hover)">platform.openai.com/api-keys</a>',
   },
-  anthropic: {
-    label: 'API Key (Anthropic)',
-    placeholder: 'sk-ant-...',
-    hint: '🔑 Lấy tại <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent-hover)">console.anthropic.com/settings/keys</a>',
-  },
-  cursor_note: { label: '', placeholder: '', hint: '' },
   custom: {
     label: 'API Key',
     placeholder: 'sk-...',
@@ -784,24 +784,20 @@ function initSettings() {
 function updateProviderUI() {
   const p = document.getElementById('provider').value;
   const info = PROVIDER_INFO[p] || PROVIDER_INFO.custom;
-  const isCursor = p === 'cursor_note';
 
-  // Cursor notice
-  document.getElementById('cursor-notice').style.display = isCursor ? '' : 'none';
-  // API key field
-  document.getElementById('apikey-field').style.display = isCursor ? 'none' : '';
+  // Show Cursor=Claude notice when Anthropic is selected
+  document.getElementById('cursor-notice').style.display = p === 'anthropic' ? '' : 'none';
+  // API key field always visible
+  document.getElementById('apikey-field').style.display = '';
   // Custom URL field
   document.getElementById('custom-url-field').style.display = p === 'custom' ? '' : 'none';
 
-  if (!isCursor) {
-    document.getElementById('apikey-label').textContent = info.label;
-    document.getElementById('api-key').placeholder = info.placeholder;
-    document.getElementById('apikey-hint').innerHTML = info.hint;
-  }
+  document.getElementById('apikey-label').textContent = info.label;
+  document.getElementById('api-key').placeholder = info.placeholder;
+  document.getElementById('apikey-hint').innerHTML = info.hint;
 
-  // Save button disabled if Cursor
-  document.getElementById('settings-save').disabled = isCursor;
-  document.getElementById('settings-save').style.opacity = isCursor ? '0.4' : '1';
+  document.getElementById('settings-save').disabled = false;
+  document.getElementById('settings-save').style.opacity = '1';
 }
 
 document.getElementById('settings-btn').onclick = () => {
@@ -847,7 +843,7 @@ function buildEmptyState() {
   d.innerHTML = `
     <div class="empty-icon">✦</div>
     <h2>Bắt đầu cuộc trò chuyện</h2>
-    <p>Nhấn <strong>⚙️</strong> → chọn <strong>OpenRouter</strong> → lấy key miễn phí tại <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent-hover)">openrouter.ai/keys</a>.<br>Sau đó chọn model bên dưới và bắt đầu chat. Có thể đính kèm ảnh và file.</p>
+    <p>Nhấn <strong>⚙️</strong> → lấy <strong>Claude API key</strong> tại <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent-hover)">console.anthropic.com</a> (miễn phí $5 credit).<br>Claude = AI dùng trong Cursor. Có thể đính kèm ảnh và file.</p>
     <div class="suggestions">
       <div class="suggest-chip" onclick="suggest(this)">Giải thích về AI là gì?</div>
       <div class="suggest-chip" onclick="suggest(this)">Viết code Python đọc file CSV</div>
@@ -1280,7 +1276,7 @@ async function callAnthropic() {
 // BOOT
 // ═══════════════════════════════════════════════════════════════════════════════
 updateModelLabel();
-if (!cfg.apiKey) setTimeout(() => showToast('Nhấn ⚙️ → chọn OpenRouter → lấy key miễn phí tại openrouter.ai/keys'), 600);
+if (!cfg.apiKey) setTimeout(() => showToast('Nhấn ⚙️ → lấy Claude API key tại console.anthropic.com để chat như Cursor!'), 600);
 </script>
 </body>
 </html>
