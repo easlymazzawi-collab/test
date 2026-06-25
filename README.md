@@ -56,6 +56,35 @@ git pull        # hoặc: npm run update
 npm start
 ```
 
+### Cài & chạy bằng CMD (Windows)
+
+Cài 2 thứ trước (mỗi thứ 1 lần):
+
+- [Node.js LTS](https://nodejs.org) — nhớ để mặc định "Add to PATH"
+- [Git](https://git-scm.com/downloads)
+
+Mở **CMD** rồi gõ lần lượt:
+
+```cmd
+cd %USERPROFILE%\Desktop
+git clone https://github.com/easlymazzawi-collab/test cursor-chat
+cd cursor-chat
+git checkout cursor/cursor-chat-web-02bb
+node server.js
+```
+
+Mở trình duyệt vào `http://localhost:4173`. Tắt server bằng `Ctrl + C`.
+
+Lần sau muốn lấy bản mới + chạy, chỉ cần:
+
+```cmd
+cd %USERPROFILE%\Desktop\cursor-chat
+git pull
+node server.js
+```
+
+Hoặc double-click `start.bat` (đã tự `git pull` + chạy giúp bạn).
+
 ### Bấm 1 cái để tự cập nhật + chạy
 
 - **Windows**: double-click `start.bat` — tự `git pull` rồi mở server.
