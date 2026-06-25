@@ -33,6 +33,37 @@ Mở:
 http://localhost:4173
 ```
 
+### Lấy bản mới mà KHÔNG cần tải ZIP lại
+
+Thay vì tải ZIP từ GitHub rồi giải nén mỗi lần có bản sửa, hãy clone repo bằng
+`git` một lần duy nhất, sau đó chỉ cần `git pull` là có code mới nhất.
+
+Cài [Git](https://git-scm.com/downloads) một lần, rồi:
+
+```bash
+# Lần đầu (clone 1 lần)
+git clone <repo-url> cursor-chat
+cd cursor-chat
+
+# Nếu code đang ở nhánh phát triển, checkout nhánh đó
+git checkout cursor/cursor-chat-web-02bb
+```
+
+Mỗi lần mình báo đã fix, bạn chỉ cần:
+
+```bash
+git pull        # hoặc: npm run update
+npm start
+```
+
+### Bấm 1 cái để tự cập nhật + chạy
+
+- **Windows**: double-click `start.bat` — tự `git pull` rồi mở server.
+- **macOS / Linux**: chạy `./start.sh` — tự `git pull` rồi mở server.
+
+Hai script này tự lấy bản mới nhất (nếu thư mục là git clone), nên không phải
+tải lại ZIP và giải nén nữa.
+
 ### Cách dùng API key
 
 Cách khuyến nghị là đặt API key ở server:
