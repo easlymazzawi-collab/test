@@ -1082,6 +1082,26 @@ async function getRun(agentId, runId) {
   );
 }
 
+const TERMINAL_STATUSES = new Set(["FINISHED", "ERROR", "CANCELLED", "EXPIRED"]);
+
+async function waitForRun(agentId, runId, message) {
+  for (let i = 0; i < 80; i += 1) {
+    let run;
+    try {
+      run = await getRun(agentId, runId);
+    } catch {
+      return null;
+    }
+    setRunStatus(run.status || "RUNNING");
+    if (TERMINAL_STATUSES.has(run.status)) return run;
+    if (!message.text) {
+      setPending(message, `${friendlyStatus(run.status)} · chờ kết quả…`);
+    }
+    await sleep(3000);
+  }
+  return null;
+}
+
 async function streamRun(agentId, runId, message) {
   const calls = new Map();
   const controller = new AbortController();
@@ -1142,8 +1162,6 @@ async function streamRun(agentId, runId, message) {
       setRunStatus(data.status || "FINISHED");
       finished = true;
     } else if (event.type === "error") {
-      message.text = `⚠️ Lỗi stream: ${extractMessage(data) || "unknown"}`;
-      setRunStatus("ERROR");
       finished = true;
     } else if (event.type === "done") {
       finished = true;
@@ -1203,17 +1221,18 @@ async function streamRun(agentId, runId, message) {
   stopTimer();
 
   if (!text && !controller.signal.aborted) {
-    try {
-      const run = await getRun(agentId, runId);
-      if (run?.result) {
-        text = run.result;
-        message.text = text;
-      }
-      gitSummary(message, run);
-      setRunStatus(run?.status || "FINISHED");
-    } catch {
-      // keep whatever we have
+    const run = await waitForRun(agentId, runId, message);
+    if (run?.result) {
+      message.text = run.result;
+    } else if (run?.status === "ERROR") {
+      message.text = "⚠️ Agent gặp lỗi khi chạy run này.";
+    } else if (run?.status === "CANCELLED") {
+      message.text = "⏹ Run đã bị huỷ.";
+    } else if (!message.text) {
+      message.text = "Run kết thúc nhưng không có nội dung trả về.";
     }
+    if (run) gitSummary(message, run);
+    setRunStatus(run?.status || "FINISHED");
   }
 
   if (controller.signal.aborted && !text) message.text = "⏹ Đã dừng.";
