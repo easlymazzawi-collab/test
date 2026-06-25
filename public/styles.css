@@ -485,12 +485,20 @@ a {
 
 .chat-bar-model {
   flex-shrink: 0;
-  padding: 4px 10px;
+  padding: 4px 11px;
   border: 1px solid var(--line-2);
   border-radius: 999px;
-  color: var(--muted);
-  font-size: 0.72rem;
+  background: var(--surface-2);
+  color: var(--muted-2);
+  font-size: 0.74rem;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.chat-bar-model.is-fast {
+  border-color: rgba(67, 217, 140, 0.4);
+  background: rgba(67, 217, 140, 0.12);
+  color: #9ff0c1;
 }
 
 .chat-bar-actions {
@@ -999,13 +1007,19 @@ a {
 }
 
 .model-select select {
-  max-width: 190px;
+  max-width: 230px;
   height: 100%;
   border: 0;
   background: transparent;
+  color: var(--text);
   outline: none;
   font-size: 0.83rem;
   font-weight: 600;
+}
+
+.model-select select option {
+  background: #12151e;
+  color: var(--text);
 }
 
 .model-source {

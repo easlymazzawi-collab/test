@@ -923,11 +923,13 @@ function decodeModel(value) {
 
 function syncModelBadge() {
   const selected = el.model.options[el.model.selectedIndex];
-  el.modelBadge.textContent = selected && selected.value ? selected.textContent : "Default";
+  const name = selected && selected.value ? selected.textContent : "Default";
+  el.modelBadge.textContent = `Model: ${name}`;
+  el.modelBadge.classList.toggle("is-fast", /fast/i.test(name));
 }
 
 function renderModelOptions(models, source) {
-  const saved = localStorage.getItem(store.model) || el.model.value;
+  const saved = localStorage.getItem(store.model);
   el.model.innerHTML = "";
 
   const def = document.createElement("option");
@@ -954,9 +956,9 @@ function renderModelOptions(models, source) {
   const options = [...el.model.options];
   if (saved && options.some((o) => o.value === saved)) {
     el.model.value = saved;
-  } else if (!saved) {
+  } else {
     const fast = options.find((o) => /fast/i.test(o.textContent));
-    if (fast) el.model.value = fast.value;
+    el.model.value = fast ? fast.value : "";
   }
 
   el.modelStatus.textContent = source;
