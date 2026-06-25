@@ -848,18 +848,26 @@ function insertCode() {
 }
 
 function promptWithCode(text) {
-  const file = activeFile();
-  if (!file || !el.includeCode.checked || !file.content.trim()) return text;
-  return [
-    text,
-    "",
-    "---",
-    "Code context (side editor):",
-    `File: ${file.name}`,
-    "```" + file.language,
-    file.content,
-    "```",
-  ].join("\n");
+  if (!el.includeCode.checked || !state.files.length) return text;
+
+  const blocks = state.files
+    .filter((file) => file.content.trim())
+    .map((file) => [`File: ${file.name}`, "```" + file.language, file.content, "```"].join("\n"));
+
+  if (!blocks.length) return text;
+
+  const parts = [text, "", "--- Code context (tất cả file đang mở) ---", ...blocks];
+
+  if (!el.repoUrl.value.trim()) {
+    parts.push(
+      "",
+      "Lưu ý: tool chạy KHÔNG có repo nên bạn không ghi file trực tiếp được. " +
+        "Hãy trả về TOÀN BỘ nội dung từng file đã sửa trong code block riêng, " +
+        "mỗi block có dòng `File: <tên file>` ngay phía trên, để mình áp dụng và tải về.",
+    );
+  }
+
+  return parts.join("\n");
 }
 
 /* ---------- API ---------- */
@@ -1233,8 +1241,7 @@ async function send(event) {
   if (state.busy) return;
 
   const rawText = el.prompt.value.trim();
-  const file = activeFile();
-  const hasCode = el.includeCode.checked && file?.content.trim();
+  const hasCode = el.includeCode.checked && state.files.some((f) => f.content.trim());
   if (!rawText && !state.uploadedImages.length && !hasCode) return el.prompt.focus();
 
   const conversation = activeConversation();
