@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Chat</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f10;
+      --surface: #1a1a1e;
+      --surface2: #222228;
+      --border: #2e2e36;
+      --accent: #7c6ff7;
+      --accent-hover: #9b96ff;
+      --text: #e8e8f0;
+      --text-dim: #7a7a90;
+      --user-bubble: #2a2660;
+      --ai-bubble: #1e1e26;
+      --radius: 14px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 12px;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .logo {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, #7c6ff7, #a78bfa);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+    .model-badge {
+      font-size: 11px;
+      background: rgba(124,111,247,0.15);
+      color: var(--accent-hover);
+      padding: 2px 8px;
+      border-radius: 20px;
+      border: 1px solid rgba(124,111,247,0.3);
+    }
+    .header-actions { display: flex; gap: 8px; }
+    .icon-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      border-radius: 8px;
+      width: 34px; height: 34px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .icon-btn:hover { background: var(--surface2); color: var(--text); }
+
+    /* ── SETTINGS PANEL ── */
+    .settings-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .settings-overlay.open { display: flex; }
+    .settings-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      width: min(480px, calc(100vw - 32px));
+      box-shadow: var(--shadow);
+    }
+    .settings-panel h2 { font-size: 18px; margin-bottom: 20px; }
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block; font-size: 12px; color: var(--text-dim);
+      margin-bottom: 6px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+      font-family: inherit;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: var(--accent);
+    }
+    .field textarea { resize: vertical; min-height: 80px; }
+    .field select option { background: #1a1a1e; }
+    .settings-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+    .btn {
+      padding: 9px 20px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-ghost { background: var(--surface2); color: var(--text); }
+    .btn-ghost:hover { opacity: 0.8; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    /* ── MESSAGES ── */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 5px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+    .message { display: flex; gap: 10px; max-width: 820px; width: 100%; }
+    .message.user { align-self: flex-end; flex-direction: row-reverse; }
+    .message.assistant { align-self: flex-start; }
+
+    .avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .message.user .avatar { background: var(--user-bubble); }
+    .message.assistant .avatar { background: linear-gradient(135deg, #7c6ff7, #a78bfa); }
+
+    .bubble {
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 14.5px;
+      line-height: 1.65;
+      max-width: 100%;
+      word-break: break-word;
+    }
+    .message.user .bubble {
+      background: var(--user-bubble);
+      border-bottom-right-radius: 4px;
+    }
+    .message.assistant .bubble {
+      background: var(--ai-bubble);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+
+    /* Markdown styles inside bubbles */
+    .bubble p { margin-bottom: 10px; }
+    .bubble p:last-child { margin-bottom: 0; }
+    .bubble pre {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      overflow-x: auto;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+    .bubble code {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.88em;
+    }
+    .bubble :not(pre) > code {
+      background: rgba(124,111,247,0.15);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .bubble ul, .bubble ol { padding-left: 20px; margin: 8px 0; }
+    .bubble li { margin: 4px 0; }
+    .bubble h1, .bubble h2, .bubble h3 { margin: 14px 0 6px; }
+    .bubble h1 { font-size: 1.2em; }
+    .bubble h2 { font-size: 1.1em; }
+    .bubble h3 { font-size: 1em; }
+    .bubble blockquote {
+      border-left: 3px solid var(--accent);
+      padding-left: 12px;
+      color: var(--text-dim);
+      margin: 8px 0;
+    }
+    .bubble table { border-collapse: collapse; margin: 10px 0; width: 100%; }
+    .bubble th, .bubble td {
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      text-align: left;
+      font-size: 13px;
+    }
+    .bubble th { background: rgba(124,111,247,0.1); font-weight: 600; }
+    .bubble a { color: var(--accent-hover); text-decoration: underline; }
+    .bubble hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+
+    /* Cursor blink */
+    .cursor-blink {
+      display: inline-block;
+      width: 2px; height: 1em;
+      background: var(--accent);
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink 0.8s step-end infinite;
+    }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+    .typing-dots { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+    .typing-dots span {
+      width: 6px; height: 6px;
+      background: var(--text-dim);
+      border-radius: 50%;
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-5px); } }
+
+    /* Empty state */
+    .empty-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px; color: var(--text-dim);
+      text-align: center; padding: 40px 20px;
+    }
+    .empty-icon { font-size: 48px; }
+    .empty-state h2 { font-size: 20px; color: var(--text); font-weight: 600; }
+    .empty-state p { font-size: 14px; max-width: 360px; line-height: 1.6; }
+    .suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+    .suggest-chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 7px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--text);
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .suggest-chip:hover { background: var(--surface2); border-color: var(--accent); }
+
+    /* ── INPUT AREA ── */
+    .input-area {
+      padding: 16px 20px 20px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .input-box {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      transition: border-color 0.15s;
+    }
+    .input-box:focus-within { border-color: var(--accent); }
+    #input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 14.5px;
+      font-family: inherit;
+      resize: none;
+      max-height: 160px;
+      min-height: 24px;
+      line-height: 1.6;
+    }
+    #input::placeholder { color: var(--text-dim); }
+    #send-btn {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: var(--accent);
+      border: none; cursor: pointer;
+      color: #fff; font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s, transform 0.1s;
+    }
+    #send-btn:hover { background: var(--accent-hover); }
+    #send-btn:active { transform: scale(0.93); }
+    #send-btn:disabled { background: var(--border); cursor: not-allowed; }
+    .input-hint {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    /* Error toast */
+    .toast {
+      position: fixed;
+      bottom: 90px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #3d1515;
+      border: 1px solid #7a2020;
+      color: #ff8080;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 200;
+      max-width: calc(100vw - 40px);
+      text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Code copy button */
+    .code-block-wrap { position: relative; }
+    .copy-btn {
+      position: absolute; top: 8px; right: 8px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .code-block-wrap:hover .copy-btn { opacity: 1; }
+    .copy-btn:hover { color: var(--text); }
+
+    @media (max-width: 520px) {
+      header { padding: 10px 14px; }
+      header h1 { font-size: 15px; }
+      #messages { padding: 12px; gap: 12px; }
+      .input-area { padding: 10px 12px 14px; }
+      .bubble { font-size: 14px; padding: 10px 13px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="header-left">
+    <div class="logo">✦</div>
+    <h1>AI Chat</h1>
+    <span class="model-badge" id="model-badge">GPT-4o</span>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn" id="clear-btn" title="Xóa hội thoại">🗑</button>
+    <button class="icon-btn" id="settings-btn" title="Cài đặt">⚙️</button>
+  </div>
+</header>
+
+<!-- ── SETTINGS PANEL ── -->
+<div class="settings-overlay" id="settings-overlay">
+  <div class="settings-panel">
+    <h2>⚙️ Cài đặt API</h2>
+
+    <div class="field">
+      <label>Nhà cung cấp (Provider)</label>
+      <select id="provider">
+        <option value="openai">OpenAI (gpt-4o, gpt-4, gpt-3.5...)</option>
+        <option value="anthropic">Anthropic Claude</option>
+        <option value="openrouter">OpenRouter (nhiều model)</option>
+        <option value="custom">Tùy chỉnh (Custom endpoint)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>API Key</label>
+      <input type="password" id="api-key" placeholder="sk-..." autocomplete="off" />
+    </div>
+
+    <div class="field">
+      <label>Model</label>
+      <input type="text" id="model" placeholder="gpt-4o" />
+    </div>
+
+    <div class="field" id="custom-url-field" style="display:none">
+      <label>Endpoint URL</label>
+      <input type="text" id="custom-url" placeholder="https://..." />
+    </div>
+
+    <div class="field">
+      <label>System Prompt (tùy chọn)</label>
+      <textarea id="system-prompt" placeholder="Bạn là trợ lý AI hữu ích..."></textarea>
+    </div>
+
+    <div class="field">
+      <label>Nhiệt độ — Temperature (0–2)</label>
+      <input type="number" id="temperature" min="0" max="2" step="0.1" value="0.7" />
+    </div>
+
+    <div class="settings-footer">
+      <button class="btn btn-ghost" id="settings-cancel">Hủy</button>
+      <button class="btn btn-primary" id="settings-save">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MESSAGES ── -->
+<div id="messages">
+  <div class="empty-state" id="empty-state">
+    <div class="empty-icon">✦</div>
+    <h2>Bắt đầu cuộc trò chuyện</h2>
+    <p>Đặt câu hỏi bất kỳ. Nhớ nhấn ⚙️ để nhập API key trước nhé.</p>
+    <div class="suggestions">
+      <div class="suggest-chip" onclick="suggest(this)">Giải thích về AI là gì?</div>
+      <div class="suggest-chip" onclick="suggest(this)">Viết code Python đọc file CSV</div>
+      <div class="suggest-chip" onclick="suggest(this)">Dịch sang tiếng Anh: "Xin chào thế giới"</div>
+      <div class="suggest-chip" onclick="suggest(this)">Tóm tắt cách hoạt động của blockchain</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── INPUT ── -->
+<div class="input-area">
+  <div class="input-box">
+    <textarea id="input" rows="1" placeholder="Nhập tin nhắn... (Enter gửi, Shift+Enter xuống dòng)"></textarea>
+    <button id="send-btn" title="Gửi">▶</button>
+  </div>
+  <div class="input-hint">Enter để gửi &nbsp;·&nbsp; Shift+Enter để xuống dòng</div>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const PROVIDERS = {
+  openai:    { url: 'https://api.openai.com/v1/chat/completions',  defaultModel: 'gpt-4o' },
+  anthropic: { url: 'https://api.anthropic.com/v1/messages',       defaultModel: 'claude-3-5-sonnet-20241022' },
+  openrouter:{ url: 'https://openrouter.ai/api/v1/chat/completions',defaultModel: 'openai/gpt-4o' },
+  custom:    { url: '',                                             defaultModel: '' },
+};
+
+let cfg = JSON.parse(localStorage.getItem('ai_chat_cfg') || 'null') || {
+  provider: 'openai',
+  apiKey: '',
+  model: 'gpt-4o',
+  customUrl: '',
+  systemPrompt: '',
+  temperature: 0.7,
+};
+
+let messages = [];   // conversation history
+let isLoading = false;
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+function initSettings() {
+  document.getElementById('provider').value     = cfg.provider;
+  document.getElementById('api-key').value      = cfg.apiKey;
+  document.getElementById('model').value        = cfg.model;
+  document.getElementById('custom-url').value   = cfg.customUrl;
+  document.getElementById('system-prompt').value= cfg.systemPrompt;
+  document.getElementById('temperature').value  = cfg.temperature;
+  updateModelBadge();
+  toggleCustomUrl();
+}
+
+function updateModelBadge() {
+  document.getElementById('model-badge').textContent = cfg.model || 'No model';
+}
+
+function toggleCustomUrl() {
+  const show = document.getElementById('provider').value === 'custom';
+  document.getElementById('custom-url-field').style.display = show ? '' : 'none';
+}
+
+// ─── SETTINGS EVENTS ─────────────────────────────────────────────────────────
+document.getElementById('settings-btn').onclick = () => {
+  initSettings();
+  document.getElementById('settings-overlay').classList.add('open');
+};
+document.getElementById('settings-cancel').onclick = () => {
+  document.getElementById('settings-overlay').classList.remove('open');
+};
+document.getElementById('settings-overlay').onclick = (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+};
+document.getElementById('provider').onchange = function() {
+  const info = PROVIDERS[this.value];
+  if (info && info.defaultModel) document.getElementById('model').value = info.defaultModel;
+  toggleCustomUrl();
+};
+document.getElementById('settings-save').onclick = () => {
+  cfg = {
+    provider:     document.getElementById('provider').value,
+    apiKey:       document.getElementById('api-key').value.trim(),
+    model:        document.getElementById('model').value.trim(),
+    customUrl:    document.getElementById('custom-url').value.trim(),
+    systemPrompt: document.getElementById('system-prompt').value.trim(),
+    temperature:  parseFloat(document.getElementById('temperature').value) || 0.7,
+  };
+  localStorage.setItem('ai_chat_cfg', JSON.stringify(cfg));
+  document.getElementById('settings-overlay').classList.remove('open');
+  updateModelBadge();
+  showToast('Đã lưu cài đặt ✓', true);
+};
+
+// ─── CLEAR ────────────────────────────────────────────────────────────────────
+document.getElementById('clear-btn').onclick = () => {
+  if (!messages.length) return;
+  messages = [];
+  const el = document.getElementById('messages');
+  el.innerHTML = '';
+  el.appendChild(buildEmptyState());
+};
+
+function buildEmptyState() {
+  const d = document.createElement('div');
+  d.className = 'empty-state';
+  d.id = 'empty-state';
+  d.innerHTML = `
+    <div class="empty-icon">✦</div>
+    <h2>Bắt đầu cuộc trò chuyện</h2>
+    <p>Đặt câu hỏi bất kỳ. Nhớ nhấn ⚙️ để nhập API key trước nhé.</p>
+    <div class="suggestions">
+      <div class="suggest-chip" onclick="suggest(this)">Giải thích về AI là gì?</div>
+      <div class="suggest-chip" onclick="suggest(this)">Viết code Python đọc file CSV</div>
+      <div class="suggest-chip" onclick="suggest(this)">Dịch sang tiếng Anh: "Xin chào thế giới"</div>
+      <div class="suggest-chip" onclick="suggest(this)">Tóm tắt cách hoạt động của blockchain</div>
+    </div>`;
+  return d;
+}
+
+function suggest(chip) { sendMessage(chip.textContent); }
+
+// ─── INPUT AUTO-RESIZE ────────────────────────────────────────────────────────
+const inputEl = document.getElementById('input');
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + 'px';
+});
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    triggerSend();
+  }
+});
+document.getElementById('send-btn').onclick = triggerSend;
+
+function triggerSend() {
+  const text = inputEl.value.trim();
+  if (!text || isLoading) return;
+  sendMessage(text);
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+}
+
+// ─── RENDER MARKDOWN ──────────────────────────────────────────────────────────
+function renderMarkdown(raw) {
+  let html = raw
+    // Escape HTML (partial, for safety inside strings)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // Code blocks (``` ... ```)
+    .replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+      const id = 'cb_' + Math.random().toString(36).slice(2);
+      return `<div class="code-block-wrap"><pre><code class="lang-${lang}">${code.trim()}</code></pre><button class="copy-btn" onclick="copyCode('${id}',this)" id="${id}" data-code="${encodeURIComponent(code.trim())}">Sao chép</button></div>`;
+    })
+    // Inline code
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    // Bold
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Italic
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    // Strikethrough
+    .replace(/~~(.*?)~~/g, '<del>$1</del>')
+    // Headings
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    // Blockquote
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    // HR
+    .replace(/^---$/gm, '<hr>')
+    // Unordered list
+    .replace(/^\s*[-*] (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, m => '<ul>' + m + '</ul>')
+    // Ordered list
+    .replace(/^\s*\d+\. (.+)$/gm, '<li>$1</li>')
+    // Links
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    // Paragraphs (double newline)
+    .replace(/\n{2,}/g, '\n\n')
+    .split('\n\n').map(p => {
+      p = p.trim();
+      if (!p) return '';
+      if (/^<(h[1-3]|ul|ol|blockquote|hr|pre|div)/.test(p)) return p;
+      return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
+    }).join('\n');
+  return html;
+}
+
+function copyCode(id, btn) {
+  const el = document.getElementById(id);
+  const code = decodeURIComponent(el.dataset.code);
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = 'Đã sao chép!';
+    setTimeout(() => btn.textContent = 'Sao chép', 1500);
+  });
+}
+
+// ─── UI HELPERS ──────────────────────────────────────────────────────────────
+function removeEmptyState() {
+  const el = document.getElementById('empty-state');
+  if (el) el.remove();
+}
+
+function addMessage(role, content, streaming = false) {
+  removeEmptyState();
+  const wrap = document.createElement('div');
+  wrap.className = `message ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = role === 'user' ? '👤' : '✦';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  if (streaming) {
+    bubble.innerHTML = '<span class="cursor-blink"></span>';
+  } else {
+    bubble.innerHTML = role === 'user'
+      ? content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
+      : renderMarkdown(content);
+  }
+
+  wrap.appendChild(avatar);
+  wrap.appendChild(bubble);
+  document.getElementById('messages').appendChild(wrap);
+  scrollToBottom();
+  return bubble;
+}
+
+function addTyping() {
+  removeEmptyState();
+  const wrap = document.createElement('div');
+  wrap.className = 'message assistant';
+  wrap.id = 'typing-indicator';
+  wrap.innerHTML = '<div class="avatar">✦</div><div class="bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div>';
+  document.getElementById('messages').appendChild(wrap);
+  scrollToBottom();
+}
+
+function removeTyping() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+function scrollToBottom() {
+  const el = document.getElementById('messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function showToast(msg, success = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = success ? '#0f3d20' : '#3d1515';
+  el.style.borderColor = success ? '#1a7a40' : '#7a2020';
+  el.style.color = success ? '#80ff9f' : '#ff8080';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+function setLoading(v) {
+  isLoading = v;
+  document.getElementById('send-btn').disabled = v;
+  inputEl.disabled = v;
+}
+
+// ─── API CALL ─────────────────────────────────────────────────────────────────
+async function sendMessage(text) {
+  if (!cfg.apiKey) {
+    showToast('Chưa nhập API Key! Nhấn ⚙️ để cài đặt.');
+    document.getElementById('settings-btn').click();
+    return;
+  }
+
+  messages.push({ role: 'user', content: text });
+  addMessage('user', text);
+  setLoading(true);
+
+  const provider = cfg.provider;
+
+  try {
+    if (provider === 'anthropic') {
+      await callAnthropic();
+    } else {
+      await callOpenAICompatible();
+    }
+  } catch (err) {
+    removeTyping();
+    messages.pop(); // remove failed user message from history
+    showToast('Lỗi: ' + err.message);
+    setLoading(false);
+  }
+}
+
+// OpenAI / OpenRouter / Custom — streaming
+async function callOpenAICompatible() {
+  const url = cfg.provider === 'custom'
+    ? cfg.customUrl
+    : PROVIDERS[cfg.provider].url;
+
+  const body = {
+    model: cfg.model,
+    messages: [
+      ...(cfg.systemPrompt ? [{ role: 'system', content: cfg.systemPrompt }] : []),
+      ...messages,
+    ],
+    temperature: cfg.temperature,
+    stream: true,
+  };
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + cfg.apiKey,
+      ...(cfg.provider === 'openrouter' ? { 'HTTP-Referer': location.href, 'X-Title': 'AI Chat' } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    let errMsg = `HTTP ${resp.status}`;
+    try { errMsg += ': ' + (JSON.parse(errText).error?.message || errText); } catch {}
+    throw new Error(errMsg);
+  }
+
+  addTyping();
+  const bubble = addMessage('assistant', '', true);
+  removeTyping();
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value);
+    const lines = chunk.split('\n');
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') continue;
+      try {
+        const json = JSON.parse(data);
+        const delta = json.choices?.[0]?.delta?.content || '';
+        if (delta) {
+          fullText += delta;
+          bubble.innerHTML = renderMarkdown(fullText) + '<span class="cursor-blink"></span>';
+          scrollToBottom();
+        }
+      } catch {}
+    }
+  }
+
+  bubble.innerHTML = renderMarkdown(fullText);
+  messages.push({ role: 'assistant', content: fullText });
+  setLoading(false);
+  scrollToBottom();
+}
+
+// Anthropic Claude — streaming
+async function callAnthropic() {
+  const body = {
+    model: cfg.model,
+    max_tokens: 4096,
+    ...(cfg.systemPrompt ? { system: cfg.systemPrompt } : {}),
+    messages: messages,
+    stream: true,
+    temperature: cfg.temperature,
+  };
+
+  const resp = await fetch(PROVIDERS.anthropic.url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': cfg.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    let errMsg = `HTTP ${resp.status}`;
+    try { errMsg += ': ' + (JSON.parse(errText).error?.message || errText); } catch {}
+    throw new Error(errMsg);
+  }
+
+  addTyping();
+  const bubble = addMessage('assistant', '', true);
+  removeTyping();
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value);
+    const lines = chunk.split('\n');
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      try {
+        const json = JSON.parse(data);
+        if (json.type === 'content_block_delta') {
+          const delta = json.delta?.text || '';
+          if (delta) {
+            fullText += delta;
+            bubble.innerHTML = renderMarkdown(fullText) + '<span class="cursor-blink"></span>';
+            scrollToBottom();
+          }
+        }
+      } catch {}
+    }
+  }
+
+  bubble.innerHTML = renderMarkdown(fullText);
+  messages.push({ role: 'assistant', content: fullText });
+  setLoading(false);
+  scrollToBottom();
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+initSettings();
+if (!cfg.apiKey) {
+  setTimeout(() => showToast('Nhấn ⚙️ để nhập API Key và bắt đầu chat!'), 800);
+}
+</script>
+</body>
+</html>
