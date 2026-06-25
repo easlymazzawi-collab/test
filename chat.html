@@ -532,19 +532,31 @@
   <div class="panel">
     <h2>⚙️ Cài đặt</h2>
 
+    <!-- Cursor notice -->
+    <div id="cursor-notice" style="display:none; background:rgba(124,111,247,0.08); border:1px solid rgba(124,111,247,0.3); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px; line-height:1.6; color:#c0bdf8;">
+      <strong>⚠️ Cursor IDE không có API công khai</strong><br>
+      Cursor dùng giao thức nội bộ riêng, không thể gọi trực tiếp từ trình duyệt.<br>
+      👉 Dùng <strong>OpenRouter</strong> để truy cập GPT-4o, Claude, Gemini... với 1 API key — nhiều model <strong>miễn phí</strong>.<br>
+      <a href="https://openrouter.ai/keys" target="_blank" style="color:#9b96ff; text-decoration:underline;">Lấy API key miễn phí tại openrouter.ai/keys →</a>
+    </div>
+
     <div class="field">
       <label>Nhà cung cấp (Provider)</label>
       <select id="provider">
-        <option value="openai">OpenAI</option>
+        <option value="openrouter">⭐ OpenRouter — nhiều model, có Free (khuyên dùng)</option>
+        <option value="openai">OpenAI (GPT-4o, o1...)</option>
         <option value="anthropic">Anthropic Claude</option>
-        <option value="openrouter">OpenRouter</option>
+        <option value="cursor_note">Cursor IDE ← xem giải thích</option>
         <option value="custom">Custom endpoint</option>
       </select>
     </div>
 
-    <div class="field">
-      <label>API Key</label>
-      <input type="password" id="api-key" placeholder="sk-..." autocomplete="off" />
+    <div id="provider-hint" style="display:none; font-size:12.5px; color:var(--text-dim); margin-top:-8px; margin-bottom:12px; padding: 0 2px;"></div>
+
+    <div class="field" id="apikey-field">
+      <label id="apikey-label">API Key</label>
+      <input type="password" id="api-key" placeholder="sk-or-v1-..." autocomplete="off" />
+      <div id="apikey-hint" style="font-size:11.5px; color:var(--text-dim); margin-top:5px;"></div>
     </div>
 
     <div class="field" id="custom-url-field" style="display:none">
@@ -574,7 +586,7 @@
   <div class="empty-state" id="empty-state">
     <div class="empty-icon">✦</div>
     <h2>Bắt đầu cuộc trò chuyện</h2>
-    <p>Chọn model bên dưới, nhập API key (⚙️) rồi bắt đầu chat.<br>Bạn có thể đính kèm ảnh và file để AI phân tích.</p>
+    <p>Nhấn <strong>⚙️</strong> → chọn <strong>OpenRouter</strong> → lấy key miễn phí tại <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent-hover)">openrouter.ai/keys</a>.<br>Sau đó chọn model bên dưới và bắt đầu chat. Có thể đính kèm ảnh và file.</p>
     <div class="suggestions">
       <div class="suggest-chip" onclick="suggest(this)">Giải thích về AI là gì?</div>
       <div class="suggest-chip" onclick="suggest(this)">Viết code Python đọc file CSV</div>
@@ -664,9 +676,9 @@ const MODEL_PRESETS = [
 // STATE
 // ═══════════════════════════════════════════════════════════════════════════════
 let cfg = JSON.parse(localStorage.getItem('ai_chat_cfg') || 'null') || {
-  provider: 'openai',
+  provider: 'openrouter',
   apiKey: '',
-  model: 'gpt-4o',
+  model: 'openai/gpt-4o',
   customUrl: '',
   systemPrompt: '',
   temperature: 0.7,
@@ -736,17 +748,60 @@ document.getElementById('model-picker').addEventListener('click', e => e.stopPro
 // ═══════════════════════════════════════════════════════════════════════════════
 // SETTINGS
 // ═══════════════════════════════════════════════════════════════════════════════
+const PROVIDER_INFO = {
+  openrouter: {
+    label: 'API Key (OpenRouter)',
+    placeholder: 'sk-or-v1-...',
+    hint: '🔑 Lấy API key miễn phí tại <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent-hover)">openrouter.ai/keys</a>',
+  },
+  openai: {
+    label: 'API Key (OpenAI)',
+    placeholder: 'sk-...',
+    hint: '🔑 Lấy tại <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--accent-hover)">platform.openai.com/api-keys</a>',
+  },
+  anthropic: {
+    label: 'API Key (Anthropic)',
+    placeholder: 'sk-ant-...',
+    hint: '🔑 Lấy tại <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent-hover)">console.anthropic.com/settings/keys</a>',
+  },
+  cursor_note: { label: '', placeholder: '', hint: '' },
+  custom: {
+    label: 'API Key',
+    placeholder: 'sk-...',
+    hint: '',
+  },
+};
+
 function initSettings() {
   document.getElementById('provider').value      = cfg.provider;
   document.getElementById('api-key').value       = cfg.apiKey;
   document.getElementById('custom-url').value    = cfg.customUrl;
   document.getElementById('system-prompt').value = cfg.systemPrompt;
   document.getElementById('temperature').value   = cfg.temperature;
-  toggleCustomUrl();
+  updateProviderUI();
 }
-function toggleCustomUrl() {
-  document.getElementById('custom-url-field').style.display =
-    document.getElementById('provider').value === 'custom' ? '' : 'none';
+
+function updateProviderUI() {
+  const p = document.getElementById('provider').value;
+  const info = PROVIDER_INFO[p] || PROVIDER_INFO.custom;
+  const isCursor = p === 'cursor_note';
+
+  // Cursor notice
+  document.getElementById('cursor-notice').style.display = isCursor ? '' : 'none';
+  // API key field
+  document.getElementById('apikey-field').style.display = isCursor ? 'none' : '';
+  // Custom URL field
+  document.getElementById('custom-url-field').style.display = p === 'custom' ? '' : 'none';
+
+  if (!isCursor) {
+    document.getElementById('apikey-label').textContent = info.label;
+    document.getElementById('api-key').placeholder = info.placeholder;
+    document.getElementById('apikey-hint').innerHTML = info.hint;
+  }
+
+  // Save button disabled if Cursor
+  document.getElementById('settings-save').disabled = isCursor;
+  document.getElementById('settings-save').style.opacity = isCursor ? '0.4' : '1';
 }
 
 document.getElementById('settings-btn').onclick = () => {
@@ -759,9 +814,11 @@ document.getElementById('settings-cancel').onclick = () => {
 document.getElementById('settings-overlay').onclick = (e) => {
   if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
 };
-document.getElementById('provider').onchange = toggleCustomUrl;
+document.getElementById('provider').onchange = updateProviderUI;
 document.getElementById('settings-save').onclick = () => {
-  cfg.provider     = document.getElementById('provider').value;
+  const p = document.getElementById('provider').value;
+  if (p === 'cursor_note') return;
+  cfg.provider     = p;
   cfg.apiKey       = document.getElementById('api-key').value.trim();
   cfg.customUrl    = document.getElementById('custom-url').value.trim();
   cfg.systemPrompt = document.getElementById('system-prompt').value.trim();
@@ -790,7 +847,7 @@ function buildEmptyState() {
   d.innerHTML = `
     <div class="empty-icon">✦</div>
     <h2>Bắt đầu cuộc trò chuyện</h2>
-    <p>Chọn model bên dưới, nhập API key (⚙️) rồi bắt đầu chat.<br>Bạn có thể đính kèm ảnh và file để AI phân tích.</p>
+    <p>Nhấn <strong>⚙️</strong> → chọn <strong>OpenRouter</strong> → lấy key miễn phí tại <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent-hover)">openrouter.ai/keys</a>.<br>Sau đó chọn model bên dưới và bắt đầu chat. Có thể đính kèm ảnh và file.</p>
     <div class="suggestions">
       <div class="suggest-chip" onclick="suggest(this)">Giải thích về AI là gì?</div>
       <div class="suggest-chip" onclick="suggest(this)">Viết code Python đọc file CSV</div>
@@ -1223,7 +1280,7 @@ async function callAnthropic() {
 // BOOT
 // ═══════════════════════════════════════════════════════════════════════════════
 updateModelLabel();
-if (!cfg.apiKey) setTimeout(() => showToast('Nhấn ⚙️ để nhập API Key và bắt đầu chat!'), 600);
+if (!cfg.apiKey) setTimeout(() => showToast('Nhấn ⚙️ → chọn OpenRouter → lấy key miễn phí tại openrouter.ai/keys'), 600);
 </script>
 </body>
 </html>
