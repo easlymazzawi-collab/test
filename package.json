@@ -1,0 +1,14 @@
+{
+  "name": "cursor-chat-studio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A modern web chat interface for Cursor Cloud Agents with image upload and a side code workspace.",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check public/app.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  }
+}

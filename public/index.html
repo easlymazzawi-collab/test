@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cursor Chat Studio</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">C</div>
+          <div>
+            <h1>Cursor Chat Studio</h1>
+            <p>Chat + code agent UI</p>
+          </div>
+        </div>
+
+        <section class="panel">
+          <div class="panel-title">
+            <span>Cursor API</span>
+            <span id="connectionState" class="pill muted">Chưa kết nối</span>
+          </div>
+          <label class="field">
+            <span>API key</span>
+            <input
+              id="apiKeyInput"
+              type="password"
+              autocomplete="off"
+              placeholder="Dán Cursor API key hoặc dùng CURSOR_API_KEY"
+            />
+          </label>
+          <label class="check-row">
+            <input id="rememberKeyInput" type="checkbox" />
+            <span>Lưu key trong trình duyệt này</span>
+          </label>
+          <p class="hint">
+            Backend sẽ ưu tiên biến môi trường <code>CURSOR_API_KEY</code>. Nếu
+            nhập ở đây, key chỉ gửi tới server local qua header.
+          </p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <span>Agent</span>
+            <button id="newAgentButton" class="ghost-button" type="button">
+              Phiên mới
+            </button>
+          </div>
+
+          <label class="field">
+            <span>Agent ID</span>
+            <input id="agentIdInput" type="text" placeholder="Tự tạo khi gửi lần đầu" />
+          </label>
+
+          <label class="field">
+            <span>Model</span>
+            <select id="modelInput">
+              <option value="">Default của Cursor</option>
+              <option value="composer-2.5">Composer 2.5</option>
+              <option value="composer-2.5-fast">Composer 2.5 Fast</option>
+              <option value="gpt-5.4-high">GPT 5.4 High</option>
+              <option value="gpt-5.4-high-fast">GPT 5.4 High Fast</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Mode</span>
+            <select id="modeInput">
+              <option value="agent">Agent - sửa code trực tiếp</option>
+              <option value="plan">Plan - lập kế hoạch trước</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>GitHub repo URL</span>
+            <input
+              id="repoUrlInput"
+              type="url"
+              placeholder="https://github.com/org/repo"
+            />
+          </label>
+
+          <div class="two-col">
+            <label class="field">
+              <span>Starting ref</span>
+              <input id="startingRefInput" type="text" placeholder="main" />
+            </label>
+            <label class="field">
+              <span>PR URL</span>
+              <input id="prUrlInput" type="url" placeholder="Tuỳ chọn" />
+            </label>
+          </div>
+
+          <label class="check-row">
+            <input id="autoPrInput" type="checkbox" checked />
+            <span>Tự tạo PR nếu agent push code</span>
+          </label>
+          <label class="check-row">
+            <input id="currentBranchInput" type="checkbox" />
+            <span>Làm trên branch hiện tại</span>
+          </label>
+        </section>
+
+        <section class="panel compact">
+          <div class="panel-title">
+            <span>Run hiện tại</span>
+            <span id="runStatus" class="pill muted">idle</span>
+          </div>
+          <div class="meta-grid">
+            <span>Agent</span>
+            <strong id="agentMeta">-</strong>
+            <span>Run</span>
+            <strong id="runMeta">-</strong>
+          </div>
+          <a id="agentLink" class="agent-link hidden" href="#" target="_blank" rel="noreferrer">
+            Mở trong Cursor
+          </a>
+        </section>
+      </aside>
+
+      <main class="chat">
+        <header class="chat-header">
+          <div>
+            <p class="eyebrow">Cursor Cloud Agent</p>
+            <h2>Chat như Claude/ChatGPT, có upload ảnh và context code</h2>
+          </div>
+          <button id="clearChatButton" class="secondary-button" type="button">
+            Xoá chat
+          </button>
+        </header>
+
+        <section id="messageList" class="message-list" aria-live="polite">
+          <article class="message assistant">
+            <div class="avatar">AI</div>
+            <div class="bubble">
+              <div class="message-meta">Cursor Chat Studio</div>
+              <div class="message-text">
+                Chào bạn. Nhập Cursor API key, thêm repo nếu muốn agent sửa code
+                thật, upload tối đa 5 ảnh, rồi gửi prompt. Code ở panel bên
+                phải có thể được đính kèm vào prompt tiếp theo.
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <form id="composerForm" class="composer">
+          <div id="imagePreviewList" class="image-preview-list"></div>
+          <div class="composer-toolbar">
+            <label class="upload-button">
+              <input id="imageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple />
+              Upload ảnh
+            </label>
+            <label class="check-row small">
+              <input id="includeCodeInput" type="checkbox" checked />
+              <span>Gửi kèm tab code đang mở</span>
+            </label>
+            <button id="clearImagesButton" class="ghost-button" type="button">
+              Bỏ ảnh
+            </button>
+          </div>
+          <div class="composer-box">
+            <textarea
+              id="promptInput"
+              rows="3"
+              placeholder="Nhắn cho Cursor Agent... ví dụ: sửa bug này, tạo component, giải thích ảnh UI..."
+            ></textarea>
+            <button id="sendButton" type="submit">Gửi</button>
+          </div>
+        </form>
+      </main>
+
+      <aside class="code-workspace">
+        <div class="workspace-header">
+          <div>
+            <p class="eyebrow">Code workspace</p>
+            <h2>Viết / sửa code</h2>
+          </div>
+          <button id="newFileButton" class="secondary-button" type="button">
+            File mới
+          </button>
+        </div>
+
+        <div id="fileTabs" class="file-tabs"></div>
+
+        <div class="editor-meta">
+          <label class="field">
+            <span>Tên file</span>
+            <input id="fileNameInput" type="text" />
+          </label>
+          <label class="field">
+            <span>Ngôn ngữ</span>
+            <select id="languageInput">
+              <option value="typescript">TypeScript</option>
+              <option value="javascript">JavaScript</option>
+              <option value="tsx">TSX</option>
+              <option value="jsx">JSX</option>
+              <option value="python">Python</option>
+              <option value="html">HTML</option>
+              <option value="css">CSS</option>
+              <option value="json">JSON</option>
+              <option value="markdown">Markdown</option>
+              <option value="text">Text</option>
+            </select>
+          </label>
+        </div>
+
+        <textarea id="codeEditor" class="code-editor" spellcheck="false"></textarea>
+
+        <div class="workspace-actions">
+          <button id="copyCodeButton" class="secondary-button" type="button">
+            Copy code
+          </button>
+          <button id="insertPromptButton" class="secondary-button" type="button">
+            Chèn vào chat
+          </button>
+        </div>
+      </aside>
+    </div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
