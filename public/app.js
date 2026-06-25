@@ -837,13 +837,31 @@ function headers(json = true) {
   return out;
 }
 
-async function errorText(response) {
-  const type = response.headers.get("content-type") || "";
-  if (type.includes("application/json")) {
-    const data = await response.json();
-    return data.message || data.error || JSON.stringify(data);
+function extractMessage(data) {
+  if (!data) return "";
+  if (typeof data === "string") return data;
+  if (typeof data.message === "string") return data.message;
+  if (typeof data.error === "string") return data.error;
+  if (data.error && typeof data.error === "object") {
+    return data.error.message || data.error.code || JSON.stringify(data.error);
   }
-  return response.text();
+  if (data.details) return extractMessage(data.details);
+  return JSON.stringify(data);
+}
+
+async function errorText(response) {
+  let detail = "";
+  try {
+    const type = response.headers.get("content-type") || "";
+    if (type.includes("application/json")) {
+      detail = extractMessage(await response.json());
+    } else {
+      detail = (await response.text()).slice(0, 400);
+    }
+  } catch {
+    detail = "";
+  }
+  return `HTTP ${response.status}${detail ? ` · ${detail}` : ""}`;
 }
 
 async function cursorJson(path, payload, method = "POST") {
@@ -1107,7 +1125,8 @@ async function send(event) {
     setStatus(el.connection, "connected", "good");
     await streamRun(conversation.agentId, conversation.runId, assistant.message);
   } catch (error) {
-    updateMessage(assistant.message, `Không gửi được request: ${error.message}`);
+    const reason = error?.message || String(error) || "Lỗi không xác định";
+    updateMessage(assistant.message, `⚠️ Không gửi được request: ${reason}`);
     setStatus(el.connection, "error", "bad");
     setRunStatus("ERROR");
   } finally {
