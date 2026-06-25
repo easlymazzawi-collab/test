@@ -17,6 +17,7 @@ const FALLBACK_MODELS = [
 ];
 
 const store = {
+  version: "cursorChatStudio.version",
   key: "cursorChatStudio.apiKey",
   remember: "cursorChatStudio.rememberKey",
   conversations: "cursorChatStudio.conversations",
@@ -25,6 +26,7 @@ const store = {
   activeFile: "cursorChatStudio.activeFileId",
   codeOpen: "cursorChatStudio.codeOpen",
 };
+const APP_VERSION = "ui-polish-2026-06-25";
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -69,6 +71,8 @@ const el = {
   insertPrompt: $("insertPromptButton"),
 };
 
+migrateLocalState();
+
 const state = {
   conversations: loadConversations(),
   activeConversationId: localStorage.getItem(store.activeConversation) || "",
@@ -100,12 +104,32 @@ function starterFile(file) {
   return file?.name === "example.ts" && String(file.content || "").includes("buildPrompt");
 }
 
+function migrateLocalState() {
+  if (localStorage.getItem(store.version) === APP_VERSION) return;
+
+  try {
+    const files = JSON.parse(localStorage.getItem(store.files) || "[]");
+    if (Array.isArray(files)) {
+      const cleaned = files.filter((file) => !starterFile(file));
+      localStorage.setItem(store.files, JSON.stringify(cleaned));
+      if (!cleaned.length || !cleaned.some((file) => file.id === localStorage.getItem(store.activeFile))) {
+        localStorage.removeItem(store.activeFile);
+      }
+    }
+  } catch {
+    localStorage.removeItem(store.files);
+    localStorage.removeItem(store.activeFile);
+  }
+
+  localStorage.setItem(store.codeOpen, "false");
+  localStorage.setItem(store.version, APP_VERSION);
+}
+
 function loadFiles() {
   try {
     const files = JSON.parse(localStorage.getItem(store.files) || "[]");
     if (!Array.isArray(files)) return [];
-    if (files.length === 1 && starterFile(files[0])) return [];
-    return files;
+    return files.filter((file) => !starterFile(file));
   } catch {
     return [];
   }
@@ -333,6 +357,7 @@ function addMessage(role, text, options = {}) {
 
   saveConversations();
   renderConversationList();
+  el.messageList.querySelector(".welcome")?.remove();
   const rendered = renderMessage(message);
   scrollBottom();
   return { message, ...rendered };

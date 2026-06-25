@@ -64,3 +64,5 @@ Nếu không nhập repo URL, Cursor sẽ tạo no-repo agent để chat/trao đ
 - Agent ID/run của từng chat được giữ riêng để gửi follow-up đúng phiên
 - Code workspace cũng lưu local; bấm **Viết code** hoặc để agent trả code block
   thì panel code sẽ tự mở
+- App tự migrate state cũ để bỏ file demo `example.ts`; nếu trình duyệt vẫn hiện
+  giao diện cũ, hard refresh trang hoặc xoá site data của `localhost:4173`
