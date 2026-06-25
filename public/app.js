@@ -1,6 +1,20 @@
 const MAX_IMAGES = 5;
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+const FALLBACK_MODELS = [
+  { id: "gpt-5.5-high", displayName: "GPT-5.5 High" },
+  { id: "gpt-5.5-high-fast", displayName: "GPT-5.5 High Fast" },
+  { id: "gpt-5.4-high", displayName: "GPT-5.4 High" },
+  { id: "gpt-5.4-high-fast", displayName: "GPT-5.4 High Fast" },
+  { id: "gpt-5.3-codex-high", displayName: "Codex 5.3 High" },
+  { id: "gpt-5.3-codex-high-fast", displayName: "Codex 5.3 High Fast" },
+  { id: "claude-opus-4-8-thinking-high", displayName: "Opus 4.8 High" },
+  { id: "claude-opus-4-8-thinking-high-fast", displayName: "Opus 4.8 High Fast" },
+  { id: "claude-opus-4-7-thinking-high", displayName: "Opus 4.7 High" },
+  { id: "claude-opus-4-7-thinking-high-fast", displayName: "Opus 4.7 High Fast" },
+  { id: "claude-4.6-sonnet-high-thinking", displayName: "Sonnet 4.6 High" },
+  { id: "composer-2.5", displayName: "Composer 2.5" },
+];
 const store = {
   key: "cursorChatStudio.apiKey",
   remember: "cursorChatStudio.rememberKey",
@@ -16,6 +30,7 @@ const el = {
   connection: $("connectionState"),
   agentId: $("agentIdInput"),
   model: $("modelInput"),
+  modelStatus: $("modelStatus"),
   mode: $("modeInput"),
   repoUrl: $("repoUrlInput"),
   startingRef: $("startingRefInput"),
@@ -37,6 +52,8 @@ const el = {
   includeCode: $("includeCodeInput"),
   send: $("sendButton"),
   fileTabs: $("fileTabs"),
+  codeEmpty: $("codeEmptyState"),
+  editorShell: $("editorShell"),
   newFile: $("newFileButton"),
   fileName: $("fileNameInput"),
   language: $("languageInput"),
@@ -51,10 +68,12 @@ const state = {
   uploadedImages: [],
   files: loadFiles(),
   activeFileId: localStorage.getItem(store.active) || "",
+  importedCodeBlocks: new Set(),
   busy: false,
 };
+let modelLoadTimer;
 
-if (!state.files.some((file) => file.id === state.activeFileId)) {
+if (state.files.length && !state.files.some((file) => file.id === state.activeFileId)) {
   state.activeFileId = state.files[0].id;
 }
 
@@ -63,32 +82,22 @@ function loadFiles() {
     const parsed = JSON.parse(localStorage.getItem(store.files) || "[]");
     if (Array.isArray(parsed) && parsed.length) return parsed;
   } catch {
-    // Fall through to starter file.
+    // Fall through to an empty workspace.
   }
-  return [
-    {
-      id: crypto.randomUUID(),
-      name: "example.ts",
-      language: "typescript",
-      content:
-        "type Message = {\n" +
-        "  role: 'user' | 'assistant';\n" +
-        "  content: string;\n" +
-        "};\n\n" +
-        "export function buildPrompt(message: Message) {\n" +
-        "  return `${message.role}: ${message.content}`;\n" +
-        "}\n",
-    },
-  ];
+  return [];
 }
 
 function saveFiles() {
   localStorage.setItem(store.files, JSON.stringify(state.files));
-  localStorage.setItem(store.active, state.activeFileId);
+  if (state.activeFileId) {
+    localStorage.setItem(store.active, state.activeFileId);
+  } else {
+    localStorage.removeItem(store.active);
+  }
 }
 
 function activeFile() {
-  return state.files.find((file) => file.id === state.activeFileId) || state.files[0];
+  return state.files.find((file) => file.id === state.activeFileId) || null;
 }
 
 function pill(node, text, variant = "muted") {
@@ -230,6 +239,11 @@ async function addImages(files) {
 
 function renderTabs() {
   el.fileTabs.innerHTML = "";
+  el.includeCode.disabled = state.files.length === 0;
+  if (!state.files.length) {
+    el.includeCode.checked = false;
+  }
+
   for (const file of state.files) {
     const button = document.createElement("button");
     button.type = "button";
@@ -247,33 +261,48 @@ function renderTabs() {
 
 function renderEditor() {
   const file = activeFile();
+  if (!file) {
+    el.codeEmpty.classList.remove("hidden");
+    el.editorShell.classList.add("hidden");
+    el.fileName.value = "";
+    el.codeEditor.value = "";
+    return;
+  }
+
+  el.codeEmpty.classList.add("hidden");
+  el.editorShell.classList.remove("hidden");
   el.fileName.value = file.name;
   el.language.value = file.language;
   el.codeEditor.value = file.content;
 }
 
 function updateFile(patch) {
-  Object.assign(activeFile(), patch);
+  const file = activeFile();
+  if (!file) return;
+  Object.assign(file, patch);
   saveFiles();
   renderTabs();
 }
 
-function newFile() {
+function newFile(name, language = "typescript", content = "") {
   const file = {
     id: crypto.randomUUID(),
-    name: `scratch-${state.files.length + 1}.ts`,
-    language: "typescript",
-    content: "",
+    name: name || `scratch-${state.files.length + 1}.ts`,
+    language,
+    content,
   };
   state.files.push(file);
   state.activeFileId = file.id;
+  el.includeCode.checked = true;
   saveFiles();
   renderTabs();
   renderEditor();
+  return file;
 }
 
 function insertCode() {
   const file = activeFile();
+  if (!file) return notice("Chưa có tab code để chèn vào chat.");
   el.prompt.value += [
     "",
     `File: ${file.name}`,
@@ -287,7 +316,7 @@ function insertCode() {
 
 function promptWithCode(text) {
   const file = activeFile();
-  if (!el.includeCode.checked || !file.content.trim()) return text;
+  if (!file || !el.includeCode.checked || !file.content.trim()) return text;
   return [
     text,
     "",
@@ -328,6 +357,70 @@ async function cursorJson(path, payload, method = "POST") {
   return response.json();
 }
 
+function encodeModelSelection(selection) {
+  return JSON.stringify({
+    id: selection.id,
+    params: selection.params || [],
+  });
+}
+
+function decodeModelSelection(value) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed?.id) return parsed;
+  } catch {
+    return { id: value };
+  }
+  return null;
+}
+
+function renderModelOptions(models, sourceLabel) {
+  const previousValue = el.model.value;
+  el.model.innerHTML = "";
+
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "Default của Cursor";
+  el.model.append(defaultOption);
+
+  for (const model of models) {
+    const variants = Array.isArray(model.variants) && model.variants.length
+      ? model.variants
+      : [{ displayName: model.displayName, params: model.params || [] }];
+
+    for (const variant of variants) {
+      const option = document.createElement("option");
+      option.value = encodeModelSelection({
+        id: variant.id || model.id,
+        params: variant.params || [],
+      });
+      option.textContent = variant.displayName && variant.displayName !== model.displayName
+        ? `${model.displayName} - ${variant.displayName}`
+        : model.displayName;
+      el.model.append(option);
+    }
+  }
+
+  if ([...el.model.options].some((option) => option.value === previousValue)) {
+    el.model.value = previousValue;
+  }
+  el.modelStatus.textContent = sourceLabel;
+}
+
+async function loadModels() {
+  renderModelOptions(FALLBACK_MODELS, "fallback");
+
+  try {
+    const response = await cursorJson("/v1/models", undefined, "GET");
+    if (Array.isArray(response.items) && response.items.length) {
+      renderModelOptions(response.items, "live");
+    }
+  } catch {
+    el.modelStatus.textContent = "fallback";
+  }
+}
+
 function imagePayload(images) {
   return images.map((image) => ({ data: image.data, mimeType: image.mimeType }));
 }
@@ -337,7 +430,13 @@ function createPayload(text, images) {
     prompt: { text, images },
     mode: el.mode.value,
   };
-  if (el.model.value) payload.model = { id: el.model.value };
+  const selectedModel = decodeModelSelection(el.model.value);
+  if (selectedModel) {
+    payload.model = { id: selectedModel.id };
+    if (selectedModel.params?.length) {
+      payload.model.params = selectedModel.params;
+    }
+  }
 
   const repoUrl = el.repoUrl.value.trim();
   if (repoUrl) {
@@ -392,6 +491,63 @@ function gitLine(toolWrap, data) {
     .map((branch) => branch.prUrl || branch.branch || branch.repoUrl)
     .join(" | ")}`;
   toolWrap.append(item);
+}
+
+function languageToExtension(language) {
+  const normalized = (language || "text").toLowerCase();
+  const map = {
+    js: "js",
+    javascript: "js",
+    ts: "ts",
+    typescript: "ts",
+    jsx: "jsx",
+    tsx: "tsx",
+    py: "py",
+    python: "py",
+    html: "html",
+    css: "css",
+    json: "json",
+    md: "md",
+    markdown: "md",
+    sh: "sh",
+    bash: "sh",
+  };
+  return map[normalized] || "txt";
+}
+
+function normalizeLanguage(language) {
+  const normalized = (language || "text").toLowerCase();
+  if (normalized === "js") return "javascript";
+  if (normalized === "ts") return "typescript";
+  if (normalized === "py") return "python";
+  if (normalized === "md") return "markdown";
+  return normalized;
+}
+
+function codeHash(language, content) {
+  let hash = 0;
+  const input = `${language}\n${content}`;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+function syncCodeBlocksFromAssistant(text) {
+  const matches = text.matchAll(/```([^\n`]*)\n([\s\S]*?)```/g);
+  for (const match of matches) {
+    const rawLanguage = match[1].trim().split(/\s+/)[0] || "text";
+    const content = match[2].trim();
+    if (!content) continue;
+
+    const hash = codeHash(rawLanguage, content);
+    if (state.importedCodeBlocks.has(hash)) continue;
+    state.importedCodeBlocks.add(hash);
+
+    const language = normalizeLanguage(rawLanguage);
+    const extension = languageToExtension(language);
+    newFile(`agent-code-${state.files.length + 1}.${extension}`, language, content);
+  }
 }
 
 function parseSse(block) {
@@ -461,6 +617,7 @@ async function streamRun(agentId, runId, message) {
       } else if (event.type === "assistant") {
         text += data.text || "";
         message.body.textContent = text || "Đang xử lý...";
+        syncCodeBlocksFromAssistant(text);
         bottom();
       } else if (event.type === "tool_call") {
         toolLine(message.tools, calls, data);
@@ -468,6 +625,7 @@ async function streamRun(agentId, runId, message) {
         pill(el.runStatus, "THINKING", "warning");
       } else if (event.type === "result") {
         if (!text && data.text) message.body.textContent = data.text;
+        syncCodeBlocksFromAssistant(text || data.text || "");
         gitLine(message.tools, data);
         pill(el.runStatus, data.status || "FINISHED", statusClass(data.status));
       } else if (event.type === "error") {
@@ -483,7 +641,8 @@ async function send(event) {
   if (state.busy) return;
 
   const rawText = el.prompt.value.trim();
-  const hasCode = el.includeCode.checked && activeFile().content.trim();
+  const file = activeFile();
+  const hasCode = el.includeCode.checked && file?.content.trim();
   if (!rawText && !state.uploadedImages.length && !hasCode) return el.prompt.focus();
 
   state.agentId = el.agentId.value.trim();
@@ -540,6 +699,8 @@ function bind() {
   el.apiKey.addEventListener("input", () => {
     rememberKey();
     pill(el.connection, el.apiKey.value.trim() ? "Có API key" : "Sẵn sàng");
+    window.clearTimeout(modelLoadTimer);
+    modelLoadTimer = window.setTimeout(loadModels, 350);
   });
   el.agentId.addEventListener("input", () => {
     state.agentId = el.agentId.value.trim();
@@ -564,18 +725,21 @@ function bind() {
     state.uploadedImages = [];
     renderImages();
   });
-  el.newFile.addEventListener("click", newFile);
+  el.newFile.addEventListener("click", () => newFile());
   el.fileName.addEventListener("input", () => updateFile({ name: el.fileName.value }));
   el.language.addEventListener("change", () => updateFile({ language: el.language.value }));
   el.codeEditor.addEventListener("input", () => updateFile({ content: el.codeEditor.value }));
   el.copyCode.addEventListener("click", async () => {
-    await navigator.clipboard.writeText(activeFile().content);
+    const file = activeFile();
+    if (!file) return notice("Chưa có tab code để copy.");
+    await navigator.clipboard.writeText(file.content);
     notice("Đã copy code trong tab đang mở.");
   });
   el.insertPrompt.addEventListener("click", insertCode);
 }
 
 initKey();
+loadModels();
 renderTabs();
 renderEditor();
 updateMeta();

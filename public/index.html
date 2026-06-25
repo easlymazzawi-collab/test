@@ -55,13 +55,9 @@
           </label>
 
           <label class="field">
-            <span>Model</span>
+            <span>Model <small id="modelStatus" class="inline-status">fallback</small></span>
             <select id="modelInput">
-              <option value="">Default của Cursor</option>
-              <option value="composer-2.5">Composer 2.5</option>
-              <option value="composer-2.5-fast">Composer 2.5 Fast</option>
-              <option value="gpt-5.4-high">GPT 5.4 High</option>
-              <option value="gpt-5.4-high-fast">GPT 5.4 High Fast</option>
+              <option value="">Đang tải model...</option>
             </select>
           </label>
 
@@ -124,7 +120,7 @@
         <header class="chat-header">
           <div>
             <p class="eyebrow">Cursor Cloud Agent</p>
-            <h2>Chat như Claude/ChatGPT, có upload ảnh và context code</h2>
+            <h2>Chat, upload ảnh, gọi Cursor Agent sửa code</h2>
           </div>
           <button id="clearChatButton" class="secondary-button" type="button">
             Xoá chat
@@ -137,9 +133,9 @@
             <div class="bubble">
               <div class="message-meta">Cursor Chat Studio</div>
               <div class="message-text">
-                Chào bạn. Nhập Cursor API key, thêm repo nếu muốn agent sửa code
-                thật, upload tối đa 5 ảnh, rồi gửi prompt. Code ở panel bên
-                phải có thể được đính kèm vào prompt tiếp theo.
+                Nhập Cursor API key, chọn model, thêm repo nếu muốn agent sửa
+                code thật rồi gửi prompt. Panel code bên phải sẽ tự hiện tab
+                khi agent trả về code hoặc khi bạn tạo file mới.
               </div>
             </div>
           </article>
@@ -178,43 +174,54 @@
             <h2>Viết / sửa code</h2>
           </div>
           <button id="newFileButton" class="secondary-button" type="button">
-            File mới
+            Viết code
           </button>
         </div>
 
         <div id="fileTabs" class="file-tabs"></div>
 
-        <div class="editor-meta">
-          <label class="field">
-            <span>Tên file</span>
-            <input id="fileNameInput" type="text" />
-          </label>
-          <label class="field">
-            <span>Ngôn ngữ</span>
-            <select id="languageInput">
-              <option value="typescript">TypeScript</option>
-              <option value="javascript">JavaScript</option>
-              <option value="tsx">TSX</option>
-              <option value="jsx">JSX</option>
-              <option value="python">Python</option>
-              <option value="html">HTML</option>
-              <option value="css">CSS</option>
-              <option value="json">JSON</option>
-              <option value="markdown">Markdown</option>
-              <option value="text">Text</option>
-            </select>
-          </label>
+        <div id="codeEmptyState" class="code-empty">
+          <div class="empty-icon">⌁</div>
+          <h3>Chưa có code</h3>
+          <p>
+            Khi agent trả về code block, tab sẽ tự xuất hiện ở đây. Bạn cũng có
+            thể bấm "Viết code" để tạo file nháp.
+          </p>
         </div>
 
-        <textarea id="codeEditor" class="code-editor" spellcheck="false"></textarea>
+        <div id="editorShell" class="editor-shell hidden">
+          <div class="editor-meta">
+            <label class="field">
+              <span>Tên file</span>
+              <input id="fileNameInput" type="text" />
+            </label>
+            <label class="field">
+              <span>Ngôn ngữ</span>
+              <select id="languageInput">
+                <option value="typescript">TypeScript</option>
+                <option value="javascript">JavaScript</option>
+                <option value="tsx">TSX</option>
+                <option value="jsx">JSX</option>
+                <option value="python">Python</option>
+                <option value="html">HTML</option>
+                <option value="css">CSS</option>
+                <option value="json">JSON</option>
+                <option value="markdown">Markdown</option>
+                <option value="text">Text</option>
+              </select>
+            </label>
+          </div>
 
-        <div class="workspace-actions">
-          <button id="copyCodeButton" class="secondary-button" type="button">
-            Copy code
-          </button>
-          <button id="insertPromptButton" class="secondary-button" type="button">
-            Chèn vào chat
-          </button>
+          <textarea id="codeEditor" class="code-editor" spellcheck="false"></textarea>
+
+          <div class="workspace-actions">
+            <button id="copyCodeButton" class="secondary-button" type="button">
+              Copy code
+            </button>
+            <button id="insertPromptButton" class="secondary-button" type="button">
+              Chèn vào chat
+            </button>
+          </div>
         </div>
       </aside>
     </div>
