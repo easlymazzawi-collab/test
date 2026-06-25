@@ -145,7 +145,7 @@ async function serveStaticFile(req, res, requestUrl) {
     const ext = path.extname(filePath).toLowerCase();
     res.writeHead(200, {
       "Content-Type": MIME_TYPES[ext] || "application/octet-stream",
-      "Cache-Control": ext === ".html" ? "no-store" : "public, max-age=3600",
+      "Cache-Control": "no-store",
     });
     res.end(file);
   } catch (error) {
