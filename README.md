@@ -55,14 +55,29 @@ https://api.cursor.com/v1/agents/{agentId}/runs/{runId}/stream
 Điều này giúp frontend không gọi trực tiếp API Cursor cross-origin và không
 cần hard-code API key vào file HTML/JS.
 
-### Gửi agent sửa code trong repo
+### Hai cách để agent sửa code
+
+**1. Có repo (sửa thẳng + tạo PR):**
 
 1. Nhập `GitHub repo URL`, ví dụ `https://github.com/org/repo`
 2. Nhập `Starting ref`, ví dụ `main`
-3. Chọn `Agent - sửa code trực tiếp` hoặc `Plan - lập kế hoạch trước`
+3. Bật "Tự tạo PR khi agent push code"
 4. Nhập prompt và bấm "Gửi"
 
-Nếu không nhập repo URL, Cursor sẽ tạo no-repo agent để chat/trao đổi prompt.
+Agent chạy trên VM cloud có repo của bạn, sửa file trực tiếp, commit lên branch
+`cursor/...` và mở PR. Branch/PR hiện trong tool call của tin nhắn. Bạn không cần
+tải file về.
+
+**2. Không repo (file lẻ):**
+
+Agent cloud không truy cập máy bạn nên không sửa file local trực tiếp. Khi bạn
+thả file code/ảnh và hỏi, agent trả code trong chat. Mỗi code block có:
+
+- **Áp dụng**: ghi đè code mới vào tab đang mở trong code workspace
+- **Mở**: mở code thành tab mới
+- **Copy**: copy nhanh
+
+Trong code workspace có nút **Tải file** để lưu file đã sửa về máy chỉ với 1 click.
 
 ### Lưu đoạn chat và code
 

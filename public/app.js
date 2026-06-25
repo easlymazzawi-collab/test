@@ -85,6 +85,7 @@ const el = {
   language: $("languageInput"),
   codeEditor: $("codeEditor"),
   copyCode: $("copyCodeButton"),
+  downloadCode: $("downloadCodeButton"),
   insertPrompt: $("insertPromptButton"),
 };
 
@@ -297,7 +298,8 @@ function renderCodeBlock(lang, code) {
       <div class="code-block-head">
         <span class="code-lang">${escapeHtml(label)}</span>
         <div class="code-actions">
-          <button class="code-action code-open" type="button">Sửa</button>
+          <button class="code-action code-apply" type="button">Áp dụng</button>
+          <button class="code-action code-open" type="button">Mở</button>
           <button class="code-action code-copy" type="button">Copy</button>
         </div>
       </div>
@@ -798,6 +800,20 @@ function newFile(name, language = "typescript", content = "") {
   return file;
 }
 
+function downloadActiveFile() {
+  const file = activeFile();
+  if (!file) return notice("Chưa có tab code để tải.");
+  const blob = new Blob([file.content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.name || "file.txt";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function insertCode() {
   const file = activeFile();
   if (!file) return notice("Chưa có tab code để chèn vào chat.");
@@ -1207,6 +1223,15 @@ function bindDropAndPaste() {
   });
 }
 
+function flashButton(button, text) {
+  if (!button) return;
+  const original = button.textContent;
+  button.textContent = text;
+  setTimeout(() => {
+    button.textContent = original;
+  }, 1200);
+}
+
 function handleCodeBlockClick(event) {
   const block = event.target.closest(".code-block");
   if (!block) return;
@@ -1215,12 +1240,21 @@ function handleCodeBlockClick(event) {
 
   if (event.target.closest(".code-copy")) {
     navigator.clipboard.writeText(code);
-    const button = event.target.closest(".code-copy");
-    const original = button.textContent;
-    button.textContent = "Đã copy";
-    setTimeout(() => {
-      button.textContent = original;
-    }, 1200);
+    flashButton(event.target.closest(".code-copy"), "Đã copy");
+    return;
+  }
+
+  if (event.target.closest(".code-apply")) {
+    const file = activeFile();
+    if (file) {
+      updateFile({ content: code });
+      renderEditor();
+      setCodeOpen(true);
+      flashButton(event.target.closest(".code-apply"), "Đã áp dụng");
+    } else {
+      const ext = languageToExtension(lang);
+      newFile(`agent-code-${state.files.length + 1}.${ext}`, lang, code);
+    }
     return;
   }
 
@@ -1291,6 +1325,7 @@ function bind() {
     if (!file) return notice("Chưa có tab code để copy.");
     await navigator.clipboard.writeText(file.content);
   });
+  el.downloadCode.addEventListener("click", downloadActiveFile);
   el.insertPrompt.addEventListener("click", insertCode);
 
   el.messageList.addEventListener("click", handleCodeBlockClick);

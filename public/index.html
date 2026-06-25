@@ -67,6 +67,10 @@
             <span class="field-label">GitHub repo URL</span>
             <input id="repoUrlInput" type="url" placeholder="https://github.com/org/repo" />
           </label>
+          <p class="field-hint">
+            Có repo → agent sửa code thẳng trong repo và tạo PR. Không repo →
+            agent chỉ trả code trong chat (bấm "Áp dụng"/"Tải file").
+          </p>
 
           <div class="grid-2">
             <label class="field">
@@ -215,6 +219,7 @@
           <textarea id="codeEditor" class="code-editor" spellcheck="false"></textarea>
           <div class="editor-actions">
             <button id="copyCodeButton" class="btn btn-ghost" type="button">Copy</button>
+            <button id="downloadCodeButton" class="btn btn-ghost" type="button">Tải file</button>
             <button id="insertPromptButton" class="btn btn-ghost" type="button">Chèn vào chat</button>
           </div>
         </div>

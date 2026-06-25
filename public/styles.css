@@ -396,6 +396,13 @@ a {
   gap: 8px;
 }
 
+.field-hint {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
 .checkbox {
   display: flex;
   gap: 9px;
