@@ -11,6 +11,9 @@ Web chat hiện đại kiểu Claude/ChatGPT để gọi Cursor Cloud Agent API,
 - Chọn model ngay trong khu nhập chat
 - Upload tối đa 5 ảnh cho mỗi prompt (`png`, `jpeg`, `gif`, `webp`)
 - Kéo-thả ảnh vào trang hoặc dán ảnh (Ctrl+V) ngay trong ô chat
+- Thả/đính kèm file code (text): tự đọc nội dung, mở trong code workspace và
+  gửi kèm prompt (Cursor API chỉ nhận ảnh làm attachment, nên file code được
+  đưa vào dưới dạng code context)
 - Panel code bên phải chỉ hiện tab khi có code thật hoặc khi bạn tạo file
 - Tự tạo tab từ code block trong phản hồi của agent
 - Gửi kèm tab code đang mở vào prompt

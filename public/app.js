@@ -1,6 +1,14 @@
 const MAX_IMAGES = 5;
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+const MAX_TEXT_BYTES = 600 * 1024;
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+const TEXT_EXTENSIONS = new Set([
+  "txt", "md", "markdown", "js", "jsx", "ts", "tsx", "mjs", "cjs", "py", "rb",
+  "go", "rs", "java", "kt", "swift", "dart", "c", "h", "cpp", "cc", "hpp", "cs",
+  "php", "sh", "bash", "zsh", "json", "jsonc", "yaml", "yml", "toml", "ini",
+  "env", "xml", "html", "htm", "css", "scss", "less", "sql", "vue", "svelte",
+  "csv", "log", "gradle", "makefile", "dockerfile", "gitignore", "conf",
+]);
 const APP_VERSION = "studio-2026-06-25";
 
 const FALLBACK_MODELS = [
@@ -608,6 +616,79 @@ async function addImages(files) {
   el.imageInput.value = "";
 }
 
+function fileExtension(name) {
+  const base = name.toLowerCase();
+  if (base.includes(".")) return base.split(".").pop();
+  return base;
+}
+
+function extensionToLanguage(name) {
+  const map = {
+    js: "javascript",
+    mjs: "javascript",
+    cjs: "javascript",
+    jsx: "jsx",
+    ts: "typescript",
+    tsx: "tsx",
+    py: "python",
+    md: "markdown",
+    markdown: "markdown",
+    json: "json",
+    jsonc: "json",
+    html: "html",
+    htm: "html",
+    css: "css",
+    scss: "css",
+    less: "css",
+    sh: "bash",
+    bash: "bash",
+    zsh: "bash",
+    yml: "text",
+    yaml: "text",
+  };
+  return map[fileExtension(name)] || "text";
+}
+
+function isTextFile(file) {
+  if (file.type.startsWith("text/")) return true;
+  if (file.type === "application/json") return true;
+  return TEXT_EXTENSIONS.has(fileExtension(file.name));
+}
+
+function readTextFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+}
+
+async function addFiles(fileList) {
+  const list = Array.from(fileList || []);
+  if (!list.length) return;
+
+  const images = list.filter((f) => IMAGE_TYPES.has(f.type));
+  const texts = list.filter((f) => !IMAGE_TYPES.has(f.type) && isTextFile(f));
+  const others = list.filter((f) => !IMAGE_TYPES.has(f.type) && !isTextFile(f));
+
+  if (images.length) await addImages(images);
+
+  for (const file of texts) {
+    if (file.size > MAX_TEXT_BYTES) {
+      notice(`Bỏ qua ${file.name}: file text lớn hơn 600 KB.`);
+      continue;
+    }
+    const content = await readTextFile(file);
+    newFile(file.name, extensionToLanguage(file.name), content);
+    notice(`Đã thêm \`${file.name}\` vào code workspace và bật "Gửi code".`);
+  }
+
+  for (const file of others) {
+    notice(`Bỏ qua ${file.name}: chỉ hỗ trợ ảnh hoặc file text/code.`);
+  }
+}
+
 /* ---------- code workspace ---------- */
 function setCodeOpen(open) {
   state.codeOpen = open;
@@ -1095,16 +1176,14 @@ function bindDropAndPaste() {
     event.preventDefault();
     depth = 0;
     el.appShell.classList.remove("drag-active");
-    addImages(event.dataTransfer.files);
+    addFiles(event.dataTransfer.files);
   });
 
   el.prompt.addEventListener("paste", (event) => {
-    const files = Array.from(event.clipboardData?.files || []).filter((file) =>
-      file.type.startsWith("image/"),
-    );
+    const files = Array.from(event.clipboardData?.files || []);
     if (files.length) {
       event.preventDefault();
-      addImages(files);
+      addFiles(files);
     }
   });
 }
@@ -1170,7 +1249,7 @@ function bind() {
     }
   });
 
-  el.imageInput.addEventListener("change", (event) => addImages(event.target.files));
+  el.imageInput.addEventListener("change", (event) => addFiles(event.target.files));
   el.clearImages.addEventListener("click", () => {
     state.uploadedImages = [];
     renderImages();

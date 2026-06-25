@@ -17,8 +17,8 @@
       <div id="dropOverlay" class="drop-overlay">
         <div class="drop-card">
           <div class="drop-icon">🖼</div>
-          <strong>Thả ảnh vào đây</strong>
-          <span>PNG, JPEG, GIF, WEBP · tối đa 5 ảnh</span>
+          <strong>Thả ảnh hoặc file code vào đây</strong>
+          <span>Ảnh: PNG/JPEG/GIF/WEBP · File code mở trong workspace</span>
         </div>
       </div>
 
@@ -136,18 +136,13 @@
             <textarea
               id="promptInput"
               rows="1"
-              placeholder="Nhắn cho Cursor Agent…  (Enter để gửi · Shift+Enter xuống dòng · kéo-thả hoặc dán ảnh)"
+              placeholder="Nhắn cho Cursor Agent…  (Enter để gửi · Shift+Enter xuống dòng · kéo-thả ảnh/file code · dán ảnh)"
             ></textarea>
             <div class="composer-row">
               <div class="composer-left">
-                <label class="tool-btn" title="Upload ảnh">
-                  <input
-                    id="imageInput"
-                    type="file"
-                    accept="image/png,image/jpeg,image/gif,image/webp"
-                    multiple
-                  />
-                  <span class="tool-icon">🖼</span>
+                <label class="tool-btn" title="Đính kèm ảnh hoặc file code">
+                  <input id="imageInput" type="file" multiple />
+                  <span class="tool-icon">📎</span>
                 </label>
                 <button id="clearImagesButton" class="tool-btn hidden" type="button" title="Bỏ ảnh">
                   ✕
