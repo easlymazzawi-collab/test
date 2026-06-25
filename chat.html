@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Chat</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f10;
+      --surface: #1a1a1e;
+      --surface2: #222228;
+      --surface3: #2a2a32;
+      --border: #2e2e36;
+      --accent: #7c6ff7;
+      --accent-hover: #9b96ff;
+      --text: #e8e8f0;
+      --text-dim: #7a7a90;
+      --user-bubble: #2a2660;
+      --ai-bubble: #1e1e26;
+      --radius: 14px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 12px;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #7c6ff7, #a78bfa);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    header h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
+    .header-actions { display: flex; gap: 8px; }
+    .icon-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      border-radius: 8px;
+      width: 32px; height: 32px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .icon-btn:hover { background: var(--surface2); color: var(--text); }
+
+    /* ── SETTINGS PANEL ── */
+    .overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay.open { display: flex; }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 26px;
+      width: min(480px, calc(100vw - 32px));
+      max-height: 90dvh;
+      overflow-y: auto;
+      box-shadow: var(--shadow);
+    }
+    .panel h2 { font-size: 17px; margin-bottom: 18px; }
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block; font-size: 11px; color: var(--text-dim);
+      margin-bottom: 5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px;
+    }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 9px 13px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+      font-family: inherit;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+    .field textarea { resize: vertical; min-height: 72px; }
+    .field select option { background: #1a1a1e; }
+    .panel-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+    .btn {
+      padding: 8px 18px;
+      border-radius: 9px;
+      border: none;
+      cursor: pointer;
+      font-size: 13.5px;
+      font-weight: 500;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-ghost { background: var(--surface2); color: var(--text); }
+    .btn-ghost:hover { opacity: 0.8; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    /* ── MODEL PICKER POPUP ── */
+    .model-picker-popup {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      width: 280px;
+      max-height: 400px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+    }
+    .model-picker-popup.open { display: block; }
+    .model-picker-popup::-webkit-scrollbar { width: 4px; }
+    .model-picker-popup::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .mp-group-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-dim);
+      padding: 10px 14px 4px;
+    }
+    .mp-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: background 0.12s;
+      gap: 8px;
+    }
+    .mp-item:hover { background: var(--surface2); }
+    .mp-item.active { background: rgba(124,111,247,0.12); }
+    .mp-name { font-size: 13.5px; }
+    .mp-tag {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      background: rgba(124,111,247,0.15);
+      color: var(--accent-hover);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .mp-check { color: var(--accent); font-size: 13px; margin-left: 4px; flex-shrink: 0; }
+    .mp-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+    /* ── MESSAGES ── */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 5px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+    .message { display: flex; gap: 10px; max-width: 820px; width: 100%; }
+    .message.user { align-self: flex-end; flex-direction: row-reverse; }
+    .message.assistant { align-self: flex-start; }
+
+    .avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px;
+    }
+    .message.user .avatar { background: var(--user-bubble); }
+    .message.assistant .avatar { background: linear-gradient(135deg, #7c6ff7, #a78bfa); }
+
+    .bubble {
+      padding: 11px 15px;
+      border-radius: var(--radius);
+      font-size: 14.5px;
+      line-height: 1.65;
+      max-width: 100%;
+      word-break: break-word;
+    }
+    .message.user .bubble {
+      background: var(--user-bubble);
+      border-bottom-right-radius: 4px;
+    }
+    .message.assistant .bubble {
+      background: var(--ai-bubble);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+
+    /* Markdown styles */
+    .bubble p { margin-bottom: 10px; }
+    .bubble p:last-child { margin-bottom: 0; }
+    .bubble pre {
+      background: rgba(0,0,0,0.45);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      overflow-x: auto;
+      margin: 10px 0;
+      font-size: 12.5px;
+    }
+    .bubble code {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.87em;
+    }
+    .bubble :not(pre) > code {
+      background: rgba(124,111,247,0.15);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .bubble ul, .bubble ol { padding-left: 20px; margin: 8px 0; }
+    .bubble li { margin: 4px 0; }
+    .bubble h1, .bubble h2, .bubble h3 { margin: 14px 0 6px; }
+    .bubble h1 { font-size: 1.2em; }
+    .bubble h2 { font-size: 1.1em; }
+    .bubble h3 { font-size: 1em; }
+    .bubble blockquote {
+      border-left: 3px solid var(--accent);
+      padding-left: 12px;
+      color: var(--text-dim);
+      margin: 8px 0;
+    }
+    .bubble table { border-collapse: collapse; margin: 10px 0; width: 100%; }
+    .bubble th, .bubble td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; font-size: 13px; }
+    .bubble th { background: rgba(124,111,247,0.1); font-weight: 600; }
+    .bubble a { color: var(--accent-hover); text-decoration: underline; }
+    .bubble hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+
+    /* Image in bubble */
+    .bubble img { max-width: 100%; max-height: 320px; border-radius: 8px; margin: 6px 0; display: block; }
+
+    /* Cursor blink */
+    .cursor-blink {
+      display: inline-block; width: 2px; height: 1em;
+      background: var(--accent); margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink 0.8s step-end infinite;
+    }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+    .typing-dots { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+    .typing-dots span {
+      width: 6px; height: 6px; background: var(--text-dim);
+      border-radius: 50%;
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-5px); } }
+
+    /* Empty state */
+    .empty-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 14px; color: var(--text-dim);
+      text-align: center; padding: 40px 20px;
+    }
+    .empty-icon { font-size: 44px; }
+    .empty-state h2 { font-size: 19px; color: var(--text); font-weight: 600; }
+    .empty-state p { font-size: 13.5px; max-width: 360px; line-height: 1.6; }
+    .suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 6px; }
+    .suggest-chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 12.5px;
+      cursor: pointer;
+      color: var(--text);
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .suggest-chip:hover { background: var(--surface2); border-color: var(--accent); }
+
+    /* ── INPUT AREA ── */
+    .input-area {
+      padding: 10px 16px 14px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    /* Drag overlay */
+    .drag-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(124,111,247,0.12);
+      border: 2px dashed var(--accent);
+      border-radius: 12px;
+      z-index: 50;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      color: var(--accent-hover);
+      font-weight: 500;
+      pointer-events: none;
+    }
+    .drag-overlay.show { display: flex; }
+
+    /* File preview strip */
+    .file-preview-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-bottom: 8px;
+    }
+    .file-preview-strip:empty { display: none; }
+    .file-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 8px;
+      font-size: 12px;
+      max-width: 180px;
+    }
+    .file-chip-thumb {
+      width: 28px; height: 28px;
+      border-radius: 5px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .file-chip-icon { font-size: 18px; flex-shrink: 0; }
+    .file-chip-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11.5px;
+      color: var(--text);
+    }
+    .file-chip-remove {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-dim); font-size: 14px;
+      padding: 0 2px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .file-chip-remove:hover { color: #ff6666; }
+
+    /* Input box */
+    .input-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.15s;
+      overflow: hidden;
+    }
+    .input-box:focus-within { border-color: var(--accent); }
+
+    #input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 14.5px;
+      font-family: inherit;
+      resize: none;
+      max-height: 160px;
+      min-height: 24px;
+      line-height: 1.6;
+      padding: 11px 14px 6px;
+      display: block;
+    }
+    #input::placeholder { color: var(--text-dim); }
+
+    /* Input toolbar (bottom of input box) */
+    .input-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px 8px;
+      position: relative;
+    }
+    .toolbar-left { display: flex; align-items: center; gap: 4px; flex: 1; }
+    .toolbar-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+    .tb-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-dim);
+      border-radius: 7px;
+      padding: 4px 8px;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 4px;
+      font-size: 13px;
+      font-family: inherit;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .tb-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border); }
+    .tb-btn.active { background: rgba(124,111,247,0.12); color: var(--accent-hover); border-color: rgba(124,111,247,0.3); }
+
+    /* Model selector button */
+    #model-btn {
+      font-size: 12.5px;
+      font-weight: 500;
+      gap: 5px;
+      max-width: 160px;
+    }
+    #model-btn .model-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #model-btn .chevron { font-size: 9px; flex-shrink: 0; transition: transform 0.2s; }
+    #model-btn.open .chevron { transform: rotate(180deg); }
+
+    /* Attach button */
+    #attach-btn { font-size: 15px; padding: 4px 7px; }
+    #file-input { display: none; }
+
+    /* Send button */
+    #send-btn {
+      width: 34px; height: 34px;
+      border-radius: 9px;
+      background: var(--accent);
+      border: none; cursor: pointer;
+      color: #fff; font-size: 15px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s, transform 0.1s;
+    }
+    #send-btn:hover { background: var(--accent-hover); }
+    #send-btn:active { transform: scale(0.93); }
+    #send-btn:disabled { background: var(--border); cursor: not-allowed; }
+
+    .input-hint {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+      margin-top: 7px;
+    }
+
+    /* Code copy */
+    .code-block-wrap { position: relative; }
+    .copy-btn {
+      position: absolute; top: 8px; right: 8px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .code-block-wrap:hover .copy-btn { opacity: 1; }
+    .copy-btn:hover { color: var(--text); }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 100px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #3d1515;
+      border: 1px solid #7a2020;
+      color: #ff8080;
+      padding: 9px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 300;
+      max-width: calc(100vw - 40px);
+      text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    @media (max-width: 520px) {
+      header { padding: 10px 14px; }
+      #messages { padding: 12px; gap: 12px; }
+      .input-area { padding: 8px 10px 12px; }
+      .bubble { font-size: 14px; padding: 10px 12px; }
+      #model-btn .model-name { max-width: 90px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="header-left">
+    <div class="logo">✦</div>
+    <h1>AI Chat</h1>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn" id="clear-btn" title="Xóa hội thoại">🗑</button>
+    <button class="icon-btn" id="settings-btn" title="Cài đặt API Key">⚙️</button>
+  </div>
+</header>
+
+<!-- ── SETTINGS PANEL ── -->
+<div class="overlay" id="settings-overlay">
+  <div class="panel">
+    <h2>⚙️ Cài đặt</h2>
+
+    <!-- Cursor = Claude notice -->
+    <div id="cursor-notice" style="display:none; background:rgba(124,111,247,0.08); border:1px solid rgba(124,111,247,0.3); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px; line-height:1.6; color:#c0bdf8;">
+      <strong>✦ AI trong Cursor chính là Claude của Anthropic</strong><br>
+      Cursor dùng Claude (Sonnet/Opus) làm nền tảng chat. Để chat với AI giống hệt Cursor, bạn cần <strong>Claude API key</strong> từ Anthropic.<br><br>
+      <strong>Cách lấy Claude API key (miễn phí $5 credit):</strong><br>
+      1. Vào <a href="https://console.anthropic.com" target="_blank" style="color:#9b96ff">console.anthropic.com</a> → Đăng ký<br>
+      2. Vào <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#9b96ff">Settings → API Keys</a> → Create Key<br>
+      3. Dán key vào ô bên dưới → Lưu<br><br>
+      <em style="color:#9b96ff">Hoặc dùng OpenRouter nếu muốn nhiều model + có Free tier.</em>
+    </div>
+
+    <div class="field">
+      <label>Nhà cung cấp (Provider)</label>
+      <select id="provider">
+        <option value="anthropic">✦ Cursor AI = Claude (Anthropic) ← dùng cái này</option>
+        <option value="openrouter">⭐ OpenRouter — nhiều model, có Free</option>
+        <option value="openai">OpenAI (GPT-4o, o1...)</option>
+        <option value="custom">Custom endpoint</option>
+      </select>
+    </div>
+
+    <div id="provider-hint" style="display:none; font-size:12.5px; color:var(--text-dim); margin-top:-8px; margin-bottom:12px; padding: 0 2px;"></div>
+
+    <div class="field" id="apikey-field">
+      <label id="apikey-label">API Key</label>
+      <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off" />
+      <div id="apikey-hint" style="font-size:11.5px; color:var(--text-dim); margin-top:5px;"></div>
+    </div>
+
+    <div class="field" id="custom-url-field" style="display:none">
+      <label>Endpoint URL</label>
+      <input type="text" id="custom-url" placeholder="https://..." />
+    </div>
+
+    <div class="field">
+      <label>System Prompt (tùy chọn)</label>
+      <textarea id="system-prompt" placeholder="Bạn là trợ lý AI hữu ích..."></textarea>
+    </div>
+
+    <div class="field">
+      <label>Temperature (0–2)</label>
+      <input type="number" id="temperature" min="0" max="2" step="0.1" value="0.7" />
+    </div>
+
+    <div class="panel-footer">
+      <button class="btn btn-ghost" id="settings-cancel">Hủy</button>
+      <button class="btn btn-primary" id="settings-save">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MESSAGES ── -->
+<div id="messages">
+  <div class="empty-state" id="empty-state">
+    <div class="empty-icon">✦</div>
+    <h2>Bắt đầu cuộc trò chuyện</h2>
+    <p>Nhấn <strong>⚙️</strong> → lấy <strong>Claude API key</strong> tại <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent-hover)">console.anthropic.com</a> (miễn phí $5 credit).<br>Claude = AI dùng trong Cursor. Có thể đính kèm ảnh và file.</p>
+    <div class="suggestions">
+      <div class="suggest-chip" onclick="suggest(this)">Giải thích về AI là gì?</div>
+      <div class="suggest-chip" onclick="suggest(this)">Viết code Python đọc file CSV</div>
+      <div class="suggest-chip" onclick="suggest(this)">Phân tích ảnh này giúp tôi</div>
+      <div class="suggest-chip" onclick="suggest(this)">Tóm tắt cách dùng blockchain</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── INPUT ── -->
+<div class="input-area" id="input-area">
+  <div class="drag-overlay" id="drag-overlay">📎 Thả file/ảnh vào đây</div>
+
+  <div class="file-preview-strip" id="file-preview-strip"></div>
+
+  <div class="input-box">
+    <textarea id="input" rows="1" placeholder="Nhập tin nhắn... (Enter gửi, Shift+Enter xuống dòng)"></textarea>
+
+    <div class="input-toolbar">
+      <div class="toolbar-left">
+        <!-- Attach button -->
+        <button class="tb-btn" id="attach-btn" title="Đính kèm file / ảnh">📎</button>
+        <input type="file" id="file-input" multiple accept="image/*,.txt,.md,.py,.js,.ts,.html,.css,.json,.csv,.xml,.yaml,.yml,.pdf,.docx" />
+
+        <!-- Model selector -->
+        <div style="position:relative">
+          <button class="tb-btn" id="model-btn" title="Chọn model AI">
+            <span style="font-size:12px">✦</span>
+            <span class="model-name" id="model-name-label">GPT-4o</span>
+            <span class="chevron">▼</span>
+          </button>
+          <!-- Model picker popup (renders inside JS) -->
+          <div class="model-picker-popup" id="model-picker"></div>
+        </div>
+      </div>
+
+      <div class="toolbar-right">
+        <button id="send-btn" title="Gửi (Enter)">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-hint">Enter để gửi &nbsp;·&nbsp; Shift+Enter xuống dòng &nbsp;·&nbsp; Dán ảnh Ctrl+V</div>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════════════════════════
+const PROVIDERS = {
+  openai:     { url: 'https://api.openai.com/v1/chat/completions' },
+  anthropic:  { url: 'https://api.anthropic.com/v1/messages' },
+  openrouter: { url: 'https://openrouter.ai/api/v1/chat/completions' },
+  custom:     { url: '' },
+};
+
+const MODEL_PRESETS = [
+  { group: '✦ Cursor AI = Claude (Anthropic)', provider: 'anthropic', items: [
+    { id: 'claude-sonnet-4-5',           name: 'Claude Sonnet 4.5',     tag: 'Cursor dùng cái này' },
+    { id: 'claude-opus-4-5',             name: 'Claude Opus 4.5',       tag: 'Mạnh nhất' },
+    { id: 'claude-3-5-sonnet-20241022',  name: 'Claude 3.5 Sonnet',     tag: '' },
+    { id: 'claude-3-5-haiku-20241022',   name: 'Claude 3.5 Haiku',      tag: 'Nhanh' },
+  ]},
+  { group: 'OpenRouter (1 key dùng nhiều model)', provider: 'openrouter', items: [
+    { id: 'anthropic/claude-3.5-sonnet',              name: 'Claude 3.5 Sonnet', tag: 'Claude' },
+    { id: 'openai/gpt-4o',                            name: 'GPT-4o',            tag: '' },
+    { id: 'google/gemini-flash-1.5',                  name: 'Gemini 1.5 Flash',  tag: 'Nhanh' },
+    { id: 'google/gemini-pro-1.5',                    name: 'Gemini 1.5 Pro',    tag: '' },
+    { id: 'meta-llama/llama-3.1-70b-instruct',        name: 'Llama 3.1 70B',     tag: 'Free' },
+    { id: 'mistralai/mistral-7b-instruct',            name: 'Mistral 7B',        tag: 'Free' },
+    { id: 'deepseek/deepseek-r1',                     name: 'DeepSeek R1',       tag: 'Free' },
+  ]},
+  { group: 'OpenAI', provider: 'openai', items: [
+    { id: 'gpt-4o',        name: 'GPT-4o',        tag: 'Tốt nhất' },
+    { id: 'gpt-4o-mini',   name: 'GPT-4o Mini',   tag: 'Nhanh & rẻ' },
+    { id: 'o1',            name: 'o1',             tag: 'Lý luận' },
+    { id: 'o1-mini',       name: 'o1 Mini',        tag: 'Lý luận' },
+    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', tag: 'Tiết kiệm' },
+  ]},
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+let cfg = JSON.parse(localStorage.getItem('ai_chat_cfg') || 'null') || {
+  provider: 'anthropic',
+  apiKey: '',
+  model: 'claude-sonnet-4-5',
+  customUrl: '',
+  systemPrompt: '',
+  temperature: 0.7,
+};
+
+let messages = [];
+let pendingFiles = [];   // { name, type, dataUrl, text }
+let isLoading = false;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODEL PICKER
+// ═══════════════════════════════════════════════════════════════════════════════
+function buildModelPicker() {
+  const popup = document.getElementById('model-picker');
+  popup.innerHTML = '';
+  MODEL_PRESETS.forEach((group, gi) => {
+    if (gi > 0) { const d = document.createElement('div'); d.className = 'mp-divider'; popup.appendChild(d); }
+    const lbl = document.createElement('div');
+    lbl.className = 'mp-group-label';
+    lbl.textContent = group.group;
+    popup.appendChild(lbl);
+    group.items.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'mp-item' + (item.id === cfg.model ? ' active' : '');
+      row.innerHTML = `
+        <span class="mp-name">${item.name}</span>
+        ${item.tag ? `<span class="mp-tag">${item.tag}</span>` : ''}
+        ${item.id === cfg.model ? '<span class="mp-check">✓</span>' : ''}
+      `;
+      row.onclick = () => {
+        cfg.model = item.id;
+        cfg.provider = group.provider;
+        localStorage.setItem('ai_chat_cfg', JSON.stringify(cfg));
+        updateModelLabel();
+        closeModelPicker();
+      };
+      popup.appendChild(row);
+    });
+  });
+}
+
+function updateModelLabel() {
+  const allItems = MODEL_PRESETS.flatMap(g => g.items);
+  const found = allItems.find(m => m.id === cfg.model);
+  document.getElementById('model-name-label').textContent = found ? found.name : cfg.model || 'Chọn model';
+}
+
+function openModelPicker() {
+  buildModelPicker();
+  document.getElementById('model-picker').classList.add('open');
+  document.getElementById('model-btn').classList.add('open');
+}
+function closeModelPicker() {
+  document.getElementById('model-picker').classList.remove('open');
+  document.getElementById('model-btn').classList.remove('open');
+}
+
+document.getElementById('model-btn').onclick = (e) => {
+  e.stopPropagation();
+  const picker = document.getElementById('model-picker');
+  if (picker.classList.contains('open')) closeModelPicker();
+  else openModelPicker();
+};
+document.addEventListener('click', () => closeModelPicker());
+document.getElementById('model-picker').addEventListener('click', e => e.stopPropagation());
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════════════════════════════
+const PROVIDER_INFO = {
+  anthropic: {
+    label: 'Claude API Key',
+    placeholder: 'sk-ant-...',
+    hint: '🔑 Lấy miễn phí tại <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent-hover)">console.anthropic.com/settings/keys</a> (có $5 credit khi đăng ký)',
+  },
+  openrouter: {
+    label: 'API Key (OpenRouter)',
+    placeholder: 'sk-or-v1-...',
+    hint: '🔑 Lấy API key miễn phí tại <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent-hover)">openrouter.ai/keys</a>',
+  },
+  openai: {
+    label: 'API Key (OpenAI)',
+    placeholder: 'sk-...',
+    hint: '🔑 Lấy tại <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--accent-hover)">platform.openai.com/api-keys</a>',
+  },
+  custom: {
+    label: 'API Key',
+    placeholder: 'sk-...',
+    hint: '',
+  },
+};
+
+function initSettings() {
+  document.getElementById('provider').value      = cfg.provider;
+  document.getElementById('api-key').value       = cfg.apiKey;
+  document.getElementById('custom-url').value    = cfg.customUrl;
+  document.getElementById('system-prompt').value = cfg.systemPrompt;
+  document.getElementById('temperature').value   = cfg.temperature;
+  updateProviderUI();
+}
+
+function updateProviderUI() {
+  const p = document.getElementById('provider').value;
+  const info = PROVIDER_INFO[p] || PROVIDER_INFO.custom;
+
+  // Show Cursor=Claude notice when Anthropic is selected
+  document.getElementById('cursor-notice').style.display = p === 'anthropic' ? '' : 'none';
+  // API key field always visible
+  document.getElementById('apikey-field').style.display = '';
+  // Custom URL field
+  document.getElementById('custom-url-field').style.display = p === 'custom' ? '' : 'none';
+
+  document.getElementById('apikey-label').textContent = info.label;
+  document.getElementById('api-key').placeholder = info.placeholder;
+  document.getElementById('apikey-hint').innerHTML = info.hint;
+
+  document.getElementById('settings-save').disabled = false;
+  document.getElementById('settings-save').style.opacity = '1';
+}
+
+document.getElementById('settings-btn').onclick = () => {
+  initSettings();
+  document.getElementById('settings-overlay').classList.add('open');
+};
+document.getElementById('settings-cancel').onclick = () => {
+  document.getElementById('settings-overlay').classList.remove('open');
+};
+document.getElementById('settings-overlay').onclick = (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+};
+document.getElementById('provider').onchange = updateProviderUI;
+document.getElementById('settings-save').onclick = () => {
+  const p = document.getElementById('provider').value;
+  if (p === 'cursor_note') return;
+  cfg.provider     = p;
+  cfg.apiKey       = document.getElementById('api-key').value.trim();
+  cfg.customUrl    = document.getElementById('custom-url').value.trim();
+  cfg.systemPrompt = document.getElementById('system-prompt').value.trim();
+  cfg.temperature  = parseFloat(document.getElementById('temperature').value) || 0.7;
+  localStorage.setItem('ai_chat_cfg', JSON.stringify(cfg));
+  document.getElementById('settings-overlay').classList.remove('open');
+  showToast('Đã lưu cài đặt ✓', true);
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CLEAR
+// ═══════════════════════════════════════════════════════════════════════════════
+document.getElementById('clear-btn').onclick = () => {
+  if (!messages.length && !pendingFiles.length) return;
+  messages = [];
+  pendingFiles = [];
+  renderFilePreviews();
+  const el = document.getElementById('messages');
+  el.innerHTML = '';
+  el.appendChild(buildEmptyState());
+};
+
+function buildEmptyState() {
+  const d = document.createElement('div');
+  d.className = 'empty-state'; d.id = 'empty-state';
+  d.innerHTML = `
+    <div class="empty-icon">✦</div>
+    <h2>Bắt đầu cuộc trò chuyện</h2>
+    <p>Nhấn <strong>⚙️</strong> → lấy <strong>Claude API key</strong> tại <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent-hover)">console.anthropic.com</a> (miễn phí $5 credit).<br>Claude = AI dùng trong Cursor. Có thể đính kèm ảnh và file.</p>
+    <div class="suggestions">
+      <div class="suggest-chip" onclick="suggest(this)">Giải thích về AI là gì?</div>
+      <div class="suggest-chip" onclick="suggest(this)">Viết code Python đọc file CSV</div>
+      <div class="suggest-chip" onclick="suggest(this)">Phân tích ảnh này giúp tôi</div>
+      <div class="suggest-chip" onclick="suggest(this)">Tóm tắt cách dùng blockchain</div>
+    </div>`;
+  return d;
+}
+
+function suggest(chip) { sendMessage(chip.textContent, []); }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FILE HANDLING
+// ═══════════════════════════════════════════════════════════════════════════════
+const fileInput = document.getElementById('file-input');
+document.getElementById('attach-btn').onclick = () => fileInput.click();
+
+fileInput.onchange = () => {
+  Array.from(fileInput.files).forEach(addFile);
+  fileInput.value = '';
+};
+
+function addFile(file) {
+  const isImage = file.type.startsWith('image/');
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    pendingFiles.push({
+      name: file.name,
+      type: file.type,
+      isImage,
+      dataUrl: isImage ? e.target.result : null,
+      text: isImage ? null : e.target.result,
+    });
+    renderFilePreviews();
+  };
+  if (isImage) reader.readAsDataURL(file);
+  else reader.readAsText(file);
+}
+
+function renderFilePreviews() {
+  const strip = document.getElementById('file-preview-strip');
+  strip.innerHTML = '';
+  pendingFiles.forEach((f, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'file-chip';
+    if (f.isImage) {
+      chip.innerHTML = `<img class="file-chip-thumb" src="${f.dataUrl}" /><span class="file-chip-name">${escHtml(f.name)}</span><button class="file-chip-remove" onclick="removeFile(${i})">×</button>`;
+    } else {
+      const icon = getFileIcon(f.name);
+      chip.innerHTML = `<span class="file-chip-icon">${icon}</span><span class="file-chip-name">${escHtml(f.name)}</span><button class="file-chip-remove" onclick="removeFile(${i})">×</button>`;
+    }
+    strip.appendChild(chip);
+  });
+}
+
+function removeFile(i) {
+  pendingFiles.splice(i, 1);
+  renderFilePreviews();
+}
+
+function getFileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const m = { py:'🐍', js:'📜', ts:'📜', html:'🌐', css:'🎨', json:'📋', csv:'📊', md:'📝', txt:'📄', pdf:'📕', xml:'📄', yaml:'📄', yml:'📄' };
+  return m[ext] || '📄';
+}
+
+// Drag & drop
+const inputArea = document.getElementById('input-area');
+const dragOverlay = document.getElementById('drag-overlay');
+let dragCount = 0;
+document.addEventListener('dragenter', e => { if (e.dataTransfer.types.includes('Files')) { dragCount++; dragOverlay.classList.add('show'); } });
+document.addEventListener('dragleave', () => { dragCount--; if (dragCount <= 0) { dragCount = 0; dragOverlay.classList.remove('show'); } });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  dragCount = 0;
+  dragOverlay.classList.remove('show');
+  Array.from(e.dataTransfer.files).forEach(addFile);
+});
+
+// Paste image from clipboard
+document.addEventListener('paste', (e) => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      if (file) addFile(file);
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INPUT
+// ═══════════════════════════════════════════════════════════════════════════════
+const inputEl = document.getElementById('input');
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + 'px';
+});
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); triggerSend(); }
+});
+document.getElementById('send-btn').onclick = triggerSend;
+
+function triggerSend() {
+  const text = inputEl.value.trim();
+  if ((!text && !pendingFiles.length) || isLoading) return;
+  const files = [...pendingFiles];
+  pendingFiles = [];
+  renderFilePreviews();
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+  sendMessage(text, files);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MARKDOWN
+// ═══════════════════════════════════════════════════════════════════════════════
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderMarkdown(raw) {
+  let html = raw
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+      const id = 'cb_' + Math.random().toString(36).slice(2);
+      return `<div class="code-block-wrap"><pre><code class="lang-${lang}">${code.trim()}</code></pre><button class="copy-btn" onclick="copyCode('${id}',this)" id="${id}" data-code="${encodeURIComponent(code.trim())}">Sao chép</button></div>`;
+    })
+    .replace(/`([^`\n]+)`/g,'<code>$1</code>')
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g,'<em>$1</em>')
+    .replace(/~~(.*?)~~/g,'<del>$1</del>')
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+    .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+    .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
+    .replace(/^---$/gm,'<hr>')
+    .replace(/^\s*[-*] (.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, m => '<ul>' + m + '</ul>')
+    .replace(/^\s*\d+\. (.+)$/gm,'<li>$1</li>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/\n{2,}/g,'\n\n')
+    .split('\n\n').map(p => {
+      p = p.trim();
+      if (!p) return '';
+      if (/^<(h[1-3]|ul|ol|blockquote|hr|pre|div)/.test(p)) return p;
+      return '<p>' + p.replace(/\n/g,'<br>') + '</p>';
+    }).join('\n');
+  return html;
+}
+
+function copyCode(id, btn) {
+  const el = document.getElementById(id);
+  navigator.clipboard.writeText(decodeURIComponent(el.dataset.code)).then(() => {
+    btn.textContent = 'Đã sao chép!';
+    setTimeout(() => btn.textContent = 'Sao chép', 1500);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+function removeEmptyState() {
+  document.getElementById('empty-state')?.remove();
+}
+
+function addMessage(role, content, files = [], streaming = false) {
+  removeEmptyState();
+  const wrap = document.createElement('div');
+  wrap.className = `message ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = role === 'user' ? '👤' : '✦';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+
+  if (streaming) {
+    bubble.innerHTML = '<span class="cursor-blink"></span>';
+  } else if (role === 'user') {
+    let inner = '';
+    // Show images attached by user
+    files.filter(f => f.isImage).forEach(f => {
+      inner += `<img src="${f.dataUrl}" style="max-width:200px;max-height:160px;border-radius:8px;margin-bottom:6px;display:block;" />`;
+    });
+    // Show text files
+    files.filter(f => !f.isImage).forEach(f => {
+      inner += `<div style="font-size:12px;color:var(--text-dim);margin-bottom:4px;">${getFileIcon(f.name)} ${escHtml(f.name)}</div>`;
+    });
+    if (content) inner += escHtml(content).replace(/\n/g,'<br>');
+    bubble.innerHTML = inner;
+  } else {
+    bubble.innerHTML = renderMarkdown(content);
+  }
+
+  wrap.appendChild(avatar);
+  wrap.appendChild(bubble);
+  document.getElementById('messages').appendChild(wrap);
+  scrollToBottom();
+  return bubble;
+}
+
+function addTyping() {
+  removeEmptyState();
+  const wrap = document.createElement('div');
+  wrap.className = 'message assistant';
+  wrap.id = 'typing-indicator';
+  wrap.innerHTML = '<div class="avatar">✦</div><div class="bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div>';
+  document.getElementById('messages').appendChild(wrap);
+  scrollToBottom();
+}
+function removeTyping() { document.getElementById('typing-indicator')?.remove(); }
+function scrollToBottom() {
+  const el = document.getElementById('messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function showToast(msg, success = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = success ? '#0f3d20' : '#3d1515';
+  el.style.borderColor = success ? '#1a7a40' : '#7a2020';
+  el.style.color = success ? '#80ff9f' : '#ff8080';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+function setLoading(v) {
+  isLoading = v;
+  document.getElementById('send-btn').disabled = v;
+  inputEl.disabled = v;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BUILD API MESSAGE CONTENT (with images/files)
+// ═══════════════════════════════════════════════════════════════════════════════
+function buildUserContent(text, files) {
+  const hasImages = files.some(f => f.isImage);
+  const textFiles = files.filter(f => !f.isImage);
+  const imgFiles  = files.filter(f => f.isImage);
+
+  // If no files, keep simple string format
+  if (!files.length) return text || '';
+
+  // Compose text with file contents appended
+  let fullText = text || '';
+  textFiles.forEach(f => {
+    fullText += `\n\n--- File: ${f.name} ---\n${f.text}`;
+  });
+
+  if (!hasImages) return fullText;
+
+  // Vision format: array of content parts
+  const parts = [];
+  imgFiles.forEach(f => {
+    if (cfg.provider === 'anthropic') {
+      const mediaType = f.type || 'image/jpeg';
+      const base64 = f.dataUrl.split(',')[1];
+      parts.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } });
+    } else {
+      // OpenAI / OpenRouter vision format
+      parts.push({ type: 'image_url', image_url: { url: f.dataUrl } });
+    }
+  });
+  if (fullText) parts.push({ type: 'text', text: fullText });
+  return parts;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SEND
+// ═══════════════════════════════════════════════════════════════════════════════
+async function sendMessage(text, files) {
+  if (!cfg.apiKey) {
+    showToast('Chưa nhập API Key! Nhấn ⚙️ để cài đặt.');
+    document.getElementById('settings-btn').click();
+    return;
+  }
+
+  const content = buildUserContent(text, files);
+  messages.push({ role: 'user', content });
+  addMessage('user', text, files);
+  setLoading(true);
+
+  try {
+    if (cfg.provider === 'anthropic') {
+      await callAnthropic();
+    } else {
+      await callOpenAICompatible();
+    }
+  } catch (err) {
+    removeTyping();
+    messages.pop();
+    showToast('Lỗi: ' + err.message);
+    setLoading(false);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// OPENAI / OPENROUTER / CUSTOM
+// ═══════════════════════════════════════════════════════════════════════════════
+async function callOpenAICompatible() {
+  const url = cfg.provider === 'custom' ? cfg.customUrl : PROVIDERS[cfg.provider].url;
+  const body = {
+    model: cfg.model,
+    messages: [
+      ...(cfg.systemPrompt ? [{ role: 'system', content: cfg.systemPrompt }] : []),
+      ...messages,
+    ],
+    temperature: cfg.temperature,
+    stream: true,
+  };
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + cfg.apiKey,
+      ...(cfg.provider === 'openrouter' ? { 'HTTP-Referer': location.href, 'X-Title': 'AI Chat' } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const t = await resp.text();
+    let msg = `HTTP ${resp.status}`;
+    try { msg += ': ' + (JSON.parse(t).error?.message || t); } catch {}
+    throw new Error(msg);
+  }
+
+  addTyping();
+  const bubble = addMessage('assistant', '', [], true);
+  removeTyping();
+
+  const reader = resp.body.getReader();
+  const dec = new TextDecoder();
+  let full = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    for (const line of dec.decode(value).split('\n')) {
+      if (!line.startsWith('data:')) continue;
+      const d = line.slice(5).trim();
+      if (d === '[DONE]') continue;
+      try {
+        const delta = JSON.parse(d).choices?.[0]?.delta?.content || '';
+        if (delta) {
+          full += delta;
+          bubble.innerHTML = renderMarkdown(full) + '<span class="cursor-blink"></span>';
+          scrollToBottom();
+        }
+      } catch {}
+    }
+  }
+
+  bubble.innerHTML = renderMarkdown(full);
+  messages.push({ role: 'assistant', content: full });
+  setLoading(false);
+  scrollToBottom();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ANTHROPIC CLAUDE
+// ═══════════════════════════════════════════════════════════════════════════════
+async function callAnthropic() {
+  const body = {
+    model: cfg.model,
+    max_tokens: 8192,
+    ...(cfg.systemPrompt ? { system: cfg.systemPrompt } : {}),
+    messages,
+    stream: true,
+    temperature: cfg.temperature,
+  };
+
+  const resp = await fetch(PROVIDERS.anthropic.url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': cfg.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const t = await resp.text();
+    let msg = `HTTP ${resp.status}`;
+    try { msg += ': ' + (JSON.parse(t).error?.message || t); } catch {}
+    throw new Error(msg);
+  }
+
+  addTyping();
+  const bubble = addMessage('assistant', '', [], true);
+  removeTyping();
+
+  const reader = resp.body.getReader();
+  const dec = new TextDecoder();
+  let full = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    for (const line of dec.decode(value).split('\n')) {
+      if (!line.startsWith('data:')) continue;
+      try {
+        const json = JSON.parse(line.slice(5).trim());
+        if (json.type === 'content_block_delta') {
+          const delta = json.delta?.text || '';
+          if (delta) {
+            full += delta;
+            bubble.innerHTML = renderMarkdown(full) + '<span class="cursor-blink"></span>';
+            scrollToBottom();
+          }
+        }
+      } catch {}
+    }
+  }
+
+  bubble.innerHTML = renderMarkdown(full);
+  messages.push({ role: 'assistant', content: full });
+  setLoading(false);
+  scrollToBottom();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════════════════════════
+updateModelLabel();
+if (!cfg.apiKey) setTimeout(() => showToast('Nhấn ⚙️ → lấy Claude API key tại console.anthropic.com để chat như Cursor!'), 600);
+</script>
+</body>
+</html>
