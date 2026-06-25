@@ -3,8 +3,10 @@
 Web chat hiện đại kiểu Claude/ChatGPT để gọi Cursor Cloud Agent API, có:
 
 - Giao diện chat streaming theo run của Cursor Agent
+- Sidebar lưu nhiều đoạn chat trong `localStorage`
 - Nhập Cursor API key hoặc dùng biến môi trường `CURSOR_API_KEY`
 - Tự load danh sách model từ `GET /v1/models` khi có API key
+- Chọn model ngay trong khu nhập chat
 - Upload tối đa 5 ảnh cho mỗi prompt (`png`, `jpeg`, `gif`, `webp`)
 - Panel code bên phải chỉ hiện tab khi có code thật hoặc khi bạn tạo file
 - Tự tạo tab từ code block trong phản hồi của agent
@@ -55,3 +57,10 @@ cần hard-code API key vào file HTML/JS.
 4. Nhập prompt và bấm "Gửi"
 
 Nếu không nhập repo URL, Cursor sẽ tạo no-repo agent để chat/trao đổi prompt.
+
+### Lưu đoạn chat và code
+
+- Mỗi đoạn chat được lưu trên trình duyệt bằng `localStorage`
+- Agent ID/run của từng chat được giữ riêng để gửi follow-up đúng phiên
+- Code workspace cũng lưu local; bấm **Viết code** hoặc để agent trả code block
+  thì panel code sẽ tự mở

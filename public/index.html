@@ -7,75 +7,52 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="sidebar">
+    <div class="app-shell" id="appShell">
+      <aside class="history-sidebar">
         <div class="brand">
           <div class="brand-mark">C</div>
           <div>
-            <h1>Cursor Chat Studio</h1>
-            <p>Chat + code agent UI</p>
+            <h1>Cursor Chat</h1>
+            <p>Cloud agent workspace</p>
           </div>
         </div>
 
-        <section class="panel">
-          <div class="panel-title">
-            <span>Cursor API</span>
-            <span id="connectionState" class="pill muted">Chưa kết nối</span>
-          </div>
+        <button id="newChatButton" class="primary-soft full" type="button">
+          + Chat mới
+        </button>
+
+        <div class="history-head">
+          <span>Đoạn chat</span>
+          <button id="clearAllChatsButton" class="icon-button" type="button" title="Xoá toàn bộ chat">
+            Xoá
+          </button>
+        </div>
+        <div id="conversationList" class="conversation-list"></div>
+
+        <details class="settings-card" open>
+          <summary>
+            <span>Cấu hình</span>
+            <span id="connectionState" class="status-dot">ready</span>
+          </summary>
+
           <label class="field">
-            <span>API key</span>
+            <span>Cursor API key</span>
             <input
               id="apiKeyInput"
               type="password"
               autocomplete="off"
-              placeholder="Dán Cursor API key hoặc dùng CURSOR_API_KEY"
+              placeholder="CURSOR_API_KEY hoặc dán key"
             />
           </label>
+
           <label class="check-row">
             <input id="rememberKeyInput" type="checkbox" />
             <span>Lưu key trong trình duyệt này</span>
           </label>
-          <p class="hint">
-            Backend sẽ ưu tiên biến môi trường <code>CURSOR_API_KEY</code>. Nếu
-            nhập ở đây, key chỉ gửi tới server local qua header.
-          </p>
-        </section>
-
-        <section class="panel">
-          <div class="panel-title">
-            <span>Agent</span>
-            <button id="newAgentButton" class="ghost-button" type="button">
-              Phiên mới
-            </button>
-          </div>
-
-          <label class="field">
-            <span>Agent ID</span>
-            <input id="agentIdInput" type="text" placeholder="Tự tạo khi gửi lần đầu" />
-          </label>
-
-          <label class="field">
-            <span>Model <small id="modelStatus" class="inline-status">fallback</small></span>
-            <select id="modelInput">
-              <option value="">Đang tải model...</option>
-            </select>
-          </label>
-
-          <label class="field">
-            <span>Mode</span>
-            <select id="modeInput">
-              <option value="agent">Agent - sửa code trực tiếp</option>
-              <option value="plan">Plan - lập kế hoạch trước</option>
-            </select>
-          </label>
 
           <label class="field">
             <span>GitHub repo URL</span>
-            <input
-              id="repoUrlInput"
-              type="url"
-              placeholder="https://github.com/org/repo"
-            />
+            <input id="repoUrlInput" type="url" placeholder="https://github.com/org/repo" />
           </label>
 
           <div class="two-col">
@@ -89,6 +66,20 @@
             </label>
           </div>
 
+          <div class="two-col">
+            <label class="field">
+              <span>Mode</span>
+              <select id="modeInput">
+                <option value="agent">Agent</option>
+                <option value="plan">Plan</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Agent ID</span>
+              <input id="agentIdInput" type="text" placeholder="Tự tạo" />
+            </label>
+          </div>
+
           <label class="check-row">
             <input id="autoPrInput" type="checkbox" checked />
             <span>Tự tạo PR nếu agent push code</span>
@@ -97,85 +88,79 @@
             <input id="currentBranchInput" type="checkbox" />
             <span>Làm trên branch hiện tại</span>
           </label>
-        </section>
 
-        <section class="panel compact">
-          <div class="panel-title">
-            <span>Run hiện tại</span>
-            <span id="runStatus" class="pill muted">idle</span>
+          <div class="run-card">
+            <div>
+              <span>Run</span>
+              <strong id="runStatus">idle</strong>
+            </div>
+            <a id="agentLink" class="hidden" href="#" target="_blank" rel="noreferrer">
+              Mở Cursor
+            </a>
           </div>
-          <div class="meta-grid">
-            <span>Agent</span>
-            <strong id="agentMeta">-</strong>
-            <span>Run</span>
-            <strong id="runMeta">-</strong>
-          </div>
-          <a id="agentLink" class="agent-link hidden" href="#" target="_blank" rel="noreferrer">
-            Mở trong Cursor
-          </a>
-        </section>
+        </details>
       </aside>
 
-      <main class="chat">
-        <header class="chat-header">
+      <main class="chat-panel">
+        <header class="chat-topbar">
           <div>
             <p class="eyebrow">Cursor Cloud Agent</p>
-            <h2>Chat, upload ảnh, gọi Cursor Agent sửa code</h2>
+            <h2 id="chatTitle">Chat mới</h2>
           </div>
-          <button id="clearChatButton" class="secondary-button" type="button">
-            Xoá chat
-          </button>
+          <div class="topbar-actions">
+            <button id="toggleCodeButton" class="secondary-button" type="button">
+              Code
+            </button>
+            <button id="clearChatButton" class="secondary-button" type="button">
+              Xoá chat này
+            </button>
+          </div>
         </header>
 
-        <section id="messageList" class="message-list" aria-live="polite">
-          <article class="message assistant">
-            <div class="avatar">AI</div>
-            <div class="bubble">
-              <div class="message-meta">Cursor Chat Studio</div>
-              <div class="message-text">
-                Nhập Cursor API key, chọn model, thêm repo nếu muốn agent sửa
-                code thật rồi gửi prompt. Panel code bên phải sẽ tự hiện tab
-                khi agent trả về code hoặc khi bạn tạo file mới.
-              </div>
-            </div>
-          </article>
-        </section>
+        <section id="messageList" class="message-list" aria-live="polite"></section>
 
         <form id="composerForm" class="composer">
           <div id="imagePreviewList" class="image-preview-list"></div>
-          <div class="composer-toolbar">
-            <label class="upload-button">
-              <input id="imageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple />
-              Upload ảnh
-            </label>
-            <label class="check-row small">
-              <input id="includeCodeInput" type="checkbox" checked />
-              <span>Gửi kèm tab code đang mở</span>
-            </label>
-            <button id="clearImagesButton" class="ghost-button" type="button">
-              Bỏ ảnh
-            </button>
-          </div>
-          <div class="composer-box">
+          <div class="composer-surface">
             <textarea
               id="promptInput"
-              rows="3"
-              placeholder="Nhắn cho Cursor Agent... ví dụ: sửa bug này, tạo component, giải thích ảnh UI..."
+              rows="1"
+              placeholder="Nhắn Cursor Agent..."
             ></textarea>
-            <button id="sendButton" type="submit">Gửi</button>
+            <div class="composer-tools">
+              <div class="left-tools">
+                <label class="chip upload-chip">
+                  <input id="imageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple />
+                  Ảnh
+                </label>
+                <button id="clearImagesButton" class="chip hidden" type="button">Bỏ ảnh</button>
+                <label class="chip check-chip">
+                  <input id="includeCodeInput" type="checkbox" />
+                  Gửi code
+                </label>
+                <button id="newFileButton" class="chip" type="button">Viết code</button>
+              </div>
+              <div class="right-tools">
+                <label class="model-picker">
+                  <span id="modelStatus">fallback</span>
+                  <select id="modelInput">
+                    <option value="">Đang tải model...</option>
+                  </select>
+                </label>
+                <button id="sendButton" class="send-button" type="submit">Gửi</button>
+              </div>
+            </div>
           </div>
         </form>
       </main>
 
-      <aside class="code-workspace">
-        <div class="workspace-header">
+      <aside id="codePanel" class="code-panel">
+        <div class="code-head">
           <div>
             <p class="eyebrow">Code workspace</p>
             <h2>Viết / sửa code</h2>
           </div>
-          <button id="newFileButton" class="secondary-button" type="button">
-            Viết code
-          </button>
+          <button id="closeCodeButton" class="icon-button" type="button">Đóng</button>
         </div>
 
         <div id="fileTabs" class="file-tabs"></div>
@@ -183,10 +168,7 @@
         <div id="codeEmptyState" class="code-empty">
           <div class="empty-icon">⌁</div>
           <h3>Chưa có code</h3>
-          <p>
-            Khi agent trả về code block, tab sẽ tự xuất hiện ở đây. Bạn cũng có
-            thể bấm "Viết code" để tạo file nháp.
-          </p>
+          <p>Code block agent trả về sẽ tự thành tab ở đây. Hoặc bấm "Viết code" để tạo file nháp.</p>
         </div>
 
         <div id="editorShell" class="editor-shell hidden">
@@ -215,12 +197,8 @@
           <textarea id="codeEditor" class="code-editor" spellcheck="false"></textarea>
 
           <div class="workspace-actions">
-            <button id="copyCodeButton" class="secondary-button" type="button">
-              Copy code
-            </button>
-            <button id="insertPromptButton" class="secondary-button" type="button">
-              Chèn vào chat
-            </button>
+            <button id="copyCodeButton" class="secondary-button" type="button">Copy</button>
+            <button id="insertPromptButton" class="secondary-button" type="button">Chèn vào chat</button>
           </div>
         </div>
       </aside>
