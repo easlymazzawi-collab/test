@@ -3,7 +3,9 @@
 Web chat hiện đại kiểu Claude/ChatGPT để gọi Cursor Cloud Agent API, có:
 
 - Giao diện chat streaming theo run của Cursor Agent
-- Sidebar lưu nhiều đoạn chat trong `localStorage`
+- Render markdown trong tin nhắn (heading, list, blockquote, link, code)
+- Code block trong chat có nút Copy và Sửa (mở thẳng vào code workspace)
+- Sidebar lưu nhiều đoạn chat trong `localStorage`, có nút xoá từng đoạn
 - Nhập Cursor API key hoặc dùng biến môi trường `CURSOR_API_KEY`
 - Tự load danh sách model từ `GET /v1/models` khi có API key
 - Chọn model ngay trong khu nhập chat

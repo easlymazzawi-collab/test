@@ -1,6 +1,8 @@
 const MAX_IMAGES = 5;
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+const APP_VERSION = "studio-2026-06-25";
+
 const FALLBACK_MODELS = [
   { id: "gpt-5.5-high", displayName: "GPT-5.5 High" },
   { id: "gpt-5.5-high-fast", displayName: "GPT-5.5 High Fast" },
@@ -11,9 +13,15 @@ const FALLBACK_MODELS = [
   { id: "claude-opus-4-8-thinking-high", displayName: "Opus 4.8 High" },
   { id: "claude-opus-4-8-thinking-high-fast", displayName: "Opus 4.8 High Fast" },
   { id: "claude-opus-4-7-thinking-high", displayName: "Opus 4.7 High" },
-  { id: "claude-opus-4-7-thinking-high-fast", displayName: "Opus 4.7 High Fast" },
   { id: "claude-4.6-sonnet-high-thinking", displayName: "Sonnet 4.6 High" },
   { id: "composer-2.5", displayName: "Composer 2.5" },
+];
+
+const SUGGESTIONS = [
+  { title: "Giải thích đoạn code", body: "Dán code rồi nhờ agent giải thích logic." },
+  { title: "Tạo component", body: "Mô tả UI bạn muốn, agent dựng component." },
+  { title: "Sửa bug", body: "Thêm repo URL để agent sửa và mở PR." },
+  { title: "Đọc ảnh UI", body: "Upload ảnh thiết kế và hỏi cách dựng lại." },
 ];
 
 const store = {
@@ -24,9 +32,7 @@ const store = {
   activeConversation: "cursorChatStudio.activeConversationId",
   files: "cursorChatStudio.files",
   activeFile: "cursorChatStudio.activeFileId",
-  codeOpen: "cursorChatStudio.codeOpen",
 };
-const APP_VERSION = "ui-polish-2026-06-25";
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -38,6 +44,7 @@ const el = {
   newChat: $("newChatButton"),
   clearAllChats: $("clearAllChatsButton"),
   chatTitle: $("chatTitle"),
+  modelBadge: $("modelBadge"),
   clearChat: $("clearChatButton"),
   agentId: $("agentIdInput"),
   mode: $("modeInput"),
@@ -60,6 +67,7 @@ const el = {
   send: $("sendButton"),
   toggleCode: $("toggleCodeButton"),
   closeCode: $("closeCodeButton"),
+  codeScrim: $("codeScrim"),
   fileTabs: $("fileTabs"),
   codeEmpty: $("codeEmptyState"),
   editorShell: $("editorShell"),
@@ -79,69 +87,43 @@ const state = {
   uploadedImages: [],
   files: loadFiles(),
   activeFileId: localStorage.getItem(store.activeFile) || "",
-  importedCodeBlocks: new Set(),
+  codeOpen: false,
   busy: false,
-  codeOpen: localStorage.getItem(store.codeOpen) === "true",
 };
 
 let modelLoadTimer;
 
-if (!state.conversations.length) {
-  createConversation({ activate: true, save: false });
-}
-if (!state.conversations.some((item) => item.id === state.activeConversationId)) {
+if (!state.conversations.length) createConversation({ save: false });
+if (!state.conversations.some((c) => c.id === state.activeConversationId)) {
   state.activeConversationId = state.conversations[0].id;
 }
-if (state.files.length && !state.files.some((file) => file.id === state.activeFileId)) {
+if (state.files.length && !state.files.some((f) => f.id === state.activeFileId)) {
   state.activeFileId = state.files[0].id;
 }
 
+/* ---------- storage helpers ---------- */
 function uid(prefix) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
-function starterFile(file) {
+function isStarterFile(file) {
   return file?.name === "example.ts" && String(file.content || "").includes("buildPrompt");
 }
 
 function migrateLocalState() {
   if (localStorage.getItem(store.version) === APP_VERSION) return;
-
   try {
     const files = JSON.parse(localStorage.getItem(store.files) || "[]");
     if (Array.isArray(files)) {
-      const cleaned = files.filter((file) => !starterFile(file));
+      const cleaned = files.filter((f) => !isStarterFile(f));
       localStorage.setItem(store.files, JSON.stringify(cleaned));
-      if (!cleaned.length || !cleaned.some((file) => file.id === localStorage.getItem(store.activeFile))) {
-        localStorage.removeItem(store.activeFile);
-      }
     }
   } catch {
     localStorage.removeItem(store.files);
     localStorage.removeItem(store.activeFile);
   }
-
-  localStorage.setItem(store.codeOpen, "false");
+  localStorage.removeItem("cursorChatStudio.codeOpen");
   localStorage.setItem(store.version, APP_VERSION);
-}
-
-function loadFiles() {
-  try {
-    const files = JSON.parse(localStorage.getItem(store.files) || "[]");
-    if (!Array.isArray(files)) return [];
-    return files.filter((file) => !starterFile(file));
-  } catch {
-    return [];
-  }
-}
-
-function saveFiles() {
-  localStorage.setItem(store.files, JSON.stringify(state.files));
-  if (state.activeFileId) {
-    localStorage.setItem(store.activeFile, state.activeFileId);
-  } else {
-    localStorage.removeItem(store.activeFile);
-  }
 }
 
 function loadConversations() {
@@ -158,19 +140,34 @@ function saveConversations() {
   localStorage.setItem(store.activeConversation, state.activeConversationId);
 }
 
+function loadFiles() {
+  try {
+    const files = JSON.parse(localStorage.getItem(store.files) || "[]");
+    return Array.isArray(files) ? files.filter((f) => !isStarterFile(f)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFiles() {
+  localStorage.setItem(store.files, JSON.stringify(state.files));
+  if (state.activeFileId) localStorage.setItem(store.activeFile, state.activeFileId);
+  else localStorage.removeItem(store.activeFile);
+}
+
 function activeConversation() {
-  return state.conversations.find((item) => item.id === state.activeConversationId);
+  return state.conversations.find((c) => c.id === state.activeConversationId);
 }
 
 function activeFile() {
-  return state.files.find((file) => file.id === state.activeFileId) || null;
+  return state.files.find((f) => f.id === state.activeFileId) || null;
 }
 
-function createConversation({ activate = true, save = true } = {}) {
+function createConversation({ save = true } = {}) {
   const now = new Date().toISOString();
   const conversation = {
     id: uid("chat"),
-    title: "Chat mới",
+    title: "Đoạn chat mới",
     agentId: "",
     runId: "",
     agentUrl: "",
@@ -179,87 +176,158 @@ function createConversation({ activate = true, save = true } = {}) {
     updatedAt: now,
   };
   state.conversations.unshift(conversation);
-  if (activate) state.activeConversationId = conversation.id;
+  state.activeConversationId = conversation.id;
   if (save) saveConversations();
   return conversation;
 }
 
-function setStatus(node, text, variant = "") {
-  node.textContent = text;
-  node.className = variant ? `status-dot ${variant}` : "status-dot";
+/* ---------- markdown ---------- */
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-function runVariant(status) {
-  if (status === "FINISHED") return "good";
-  if (["ERROR", "CANCELLED", "EXPIRED"].includes(status)) return "bad";
-  if (["CREATING", "RUNNING", "THINKING"].includes(status)) return "warn";
-  return "";
+function renderInline(text) {
+  const spans = [];
+  let html = escapeHtml(text);
+  html = html.replace(/`([^`]+)`/g, (_, code) => {
+    spans.push(code);
+    return `\u0000${spans.length - 1}\u0000`;
+  });
+  html = html
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, url) => {
+      const safe = /^https?:\/\//.test(url) ? url : "#";
+      return `<a href="${safe}" target="_blank" rel="noreferrer">${label}</a>`;
+    });
+  html = html.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code class="inline-code">${spans[+i]}</code>`);
+  return html;
+}
+
+function renderTextBlock(text) {
+  const lines = text.split("\n");
+  const out = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) {
+      i += 1;
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      const level = Math.min(heading[1].length, 4);
+      out.push(`<h${level}>${renderInline(heading[2])}</h${level}>`);
+      i += 1;
+      continue;
+    }
+
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) {
+      out.push("<hr />");
+      i += 1;
+      continue;
+    }
+
+    if (/^>\s?/.test(line)) {
+      const buf = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) {
+        buf.push(lines[i].replace(/^>\s?/, ""));
+        i += 1;
+      }
+      out.push(`<blockquote>${renderInline(buf.join("\n")).replace(/\n/g, "<br/>")}</blockquote>`);
+      continue;
+    }
+
+    if (/^\s*[-*+]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*[-*+]\s+/, ""));
+        i += 1;
+      }
+      out.push(`<ul>${items.map((it) => `<li>${renderInline(it)}</li>`).join("")}</ul>`);
+      continue;
+    }
+
+    if (/^\s*\d+[.)]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*\d+[.)]\s+/, ""));
+        i += 1;
+      }
+      out.push(`<ol>${items.map((it) => `<li>${renderInline(it)}</li>`).join("")}</ol>`);
+      continue;
+    }
+
+    const buf = [];
+    while (
+      i < lines.length &&
+      lines[i].trim() &&
+      !/^(#{1,6}\s|>|\s*[-*+]\s|\s*\d+[.)]\s)/.test(lines[i]) &&
+      !/^\s*([-*_])(\s*\1){2,}\s*$/.test(lines[i])
+    ) {
+      buf.push(lines[i]);
+      i += 1;
+    }
+    out.push(`<p>${renderInline(buf.join("\n")).replace(/\n/g, "<br/>")}</p>`);
+  }
+
+  return out.join("");
+}
+
+function renderCodeBlock(lang, code) {
+  const label = (lang || "code").toLowerCase();
+  return `
+    <div class="code-block" data-lang="${escapeHtml(label)}">
+      <div class="code-block-head">
+        <span class="code-lang">${escapeHtml(label)}</span>
+        <div class="code-actions">
+          <button class="code-action code-open" type="button">Sửa</button>
+          <button class="code-action code-copy" type="button">Copy</button>
+        </div>
+      </div>
+      <pre class="code-body"><code>${escapeHtml(code)}</code></pre>
+    </div>`;
+}
+
+function renderMarkdown(text) {
+  const fence = /```([^\n`]*)\n?([\s\S]*?)```/g;
+  let html = "";
+  let last = 0;
+  let match;
+  while ((match = fence.exec(text)) !== null) {
+    if (match.index > last) html += renderTextBlock(text.slice(last, match.index));
+    html += renderCodeBlock(match[1].trim(), match[2].replace(/\n$/, ""));
+    last = fence.lastIndex;
+  }
+  if (last < text.length) html += renderTextBlock(text.slice(last));
+  return html || renderTextBlock(text);
+}
+
+/* ---------- rendering ---------- */
+function setStatus(node, text, variant = "") {
+  node.textContent = text;
+  node.className = variant ? `badge ${variant}` : "badge";
 }
 
 function setRunStatus(status) {
   el.runStatus.textContent = status || "idle";
 }
 
-function updateConversationFromForm() {
-  const conversation = activeConversation();
-  if (!conversation) return;
-  conversation.agentId = el.agentId.value.trim();
-  conversation.updatedAt = new Date().toISOString();
-  saveConversations();
-  renderConversationList();
-}
-
-function updateMeta() {
-  const conversation = activeConversation();
-  el.chatTitle.textContent = conversation?.title || "Chat mới";
-  el.agentId.value = conversation?.agentId || "";
-  setRunStatus(conversation?.runId ? "ready" : "idle");
-
-  if (conversation?.agentId) {
-    el.agentLink.href = conversation.agentUrl || `https://cursor.com/agents/${conversation.agentId}`;
-    el.agentLink.classList.remove("hidden");
+function setMessageBody(bodyEl, message) {
+  if (message.role === "assistant") {
+    bodyEl.innerHTML = message.text
+      ? renderMarkdown(message.text)
+      : `<span class="typing"><span></span><span></span><span></span></span>`;
   } else {
-    el.agentLink.classList.add("hidden");
+    bodyEl.innerHTML = escapeHtml(message.text).replace(/\n/g, "<br/>");
   }
-}
-
-function previewText(conversation) {
-  const last = [...conversation.messages].reverse().find((message) => message.text);
-  return last?.text || "Chưa có tin nhắn";
-}
-
-function renderConversationList() {
-  el.conversationList.innerHTML = "";
-  for (const conversation of state.conversations) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `conversation-item${conversation.id === state.activeConversationId ? " active" : ""}`;
-
-    const title = document.createElement("strong");
-    title.textContent = conversation.title || "Chat mới";
-
-    const preview = document.createElement("span");
-    preview.textContent = previewText(conversation).replace(/\s+/g, " ").slice(0, 74);
-
-    button.append(title, preview);
-    button.addEventListener("click", () => {
-      state.activeConversationId = conversation.id;
-      saveConversations();
-      renderApp();
-    });
-    el.conversationList.append(button);
-  }
-}
-
-function renderWelcome() {
-  const welcome = document.createElement("div");
-  welcome.className = "welcome";
-  welcome.innerHTML = `
-    <p class="eyebrow">Cursor Chat Studio</p>
-    <h3>Bắt đầu chat với Cursor Agent</h3>
-    <p>Chọn model ngay dưới ô nhập, upload ảnh nếu cần, hoặc bấm "Viết code" để mở workspace. Toàn bộ đoạn chat được lưu trên trình duyệt này.</p>
-  `;
-  el.messageList.append(welcome);
 }
 
 function renderMessage(message) {
@@ -274,15 +342,17 @@ function renderMessage(message) {
   const bubble = document.createElement("div");
   bubble.className = "bubble";
 
-  const meta = document.createElement("div");
-  meta.className = "message-meta";
-  meta.textContent = message.meta || (message.role === "user" ? "Bạn" : "Cursor Agent");
+  if (message.role === "assistant") {
+    const meta = document.createElement("div");
+    meta.className = "message-meta";
+    meta.textContent = message.meta || "Cursor Agent";
+    bubble.append(meta);
+  }
 
   const body = document.createElement("div");
-  body.className = "message-text";
-  body.textContent = message.text || "";
-
-  bubble.append(meta, body);
+  body.className = "prose";
+  setMessageBody(body, message);
+  bubble.append(body);
 
   if (message.images?.length) {
     const wrap = document.createElement("div");
@@ -308,7 +378,37 @@ function renderMessage(message) {
 
   article.append(avatar, bubble);
   el.messageList.append(article);
-  return { article, body, tools };
+  return article;
+}
+
+function renderWelcome() {
+  const welcome = document.createElement("div");
+  welcome.className = "welcome";
+
+  const hero = document.createElement("div");
+  hero.className = "welcome-hero";
+  hero.innerHTML = `
+    <h3>Bắt đầu với Cursor Agent</h3>
+    <p>Chọn model dưới ô nhập, upload ảnh, hoặc bấm "Viết code". Code block agent trả về sẽ có nút Copy và Sửa. Mọi đoạn chat được lưu trên trình duyệt này.</p>
+  `;
+
+  const grid = document.createElement("div");
+  grid.className = "suggestions";
+  for (const item of SUGGESTIONS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "suggestion";
+    button.innerHTML = `<strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.body)}</span>`;
+    button.addEventListener("click", () => {
+      el.prompt.value = `${item.title}: `;
+      autoGrow();
+      el.prompt.focus();
+    });
+    grid.append(button);
+  }
+
+  welcome.append(hero, grid);
+  el.messageList.append(welcome);
 }
 
 function renderMessages() {
@@ -318,10 +418,61 @@ function renderMessages() {
     renderWelcome();
     return;
   }
-  for (const message of conversation.messages) {
-    renderMessage(message);
-  }
+  for (const message of conversation.messages) renderMessage(message);
   scrollBottom();
+}
+
+function previewText(conversation) {
+  const last = [...conversation.messages].reverse().find((m) => m.text);
+  return (last?.text || "Chưa có tin nhắn").replace(/[`*#>]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function renderConversationList() {
+  el.conversationList.innerHTML = "";
+  for (const conversation of state.conversations) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = `conversation-item${conversation.id === state.activeConversationId ? " active" : ""}`;
+
+    const text = document.createElement("div");
+    text.className = "ci-text";
+    const title = document.createElement("strong");
+    title.textContent = conversation.title || "Đoạn chat mới";
+    const preview = document.createElement("span");
+    preview.textContent = previewText(conversation).slice(0, 80);
+    text.append(title, preview);
+
+    const del = document.createElement("span");
+    del.className = "ci-delete";
+    del.textContent = "✕";
+    del.title = "Xoá đoạn chat";
+    del.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteConversation(conversation.id);
+    });
+
+    item.append(text, del);
+    item.addEventListener("click", () => {
+      state.activeConversationId = conversation.id;
+      saveConversations();
+      renderApp();
+    });
+    el.conversationList.append(item);
+  }
+}
+
+function updateMeta() {
+  const conversation = activeConversation();
+  el.chatTitle.textContent = conversation?.title || "Đoạn chat mới";
+  el.agentId.value = conversation?.agentId || "";
+  setRunStatus(conversation?.runId ? "ready" : "idle");
+
+  if (conversation?.agentId) {
+    el.agentLink.href = conversation.agentUrl || `https://cursor.com/agents/${conversation.agentId}`;
+    el.agentLink.classList.remove("hidden");
+  } else {
+    el.agentLink.classList.add("hidden");
+  }
 }
 
 function renderApp() {
@@ -330,7 +481,6 @@ function renderApp() {
   renderTabs();
   renderEditor();
   updateMeta();
-  applyCodeOpen();
 }
 
 function scrollBottom() {
@@ -351,31 +501,29 @@ function addMessage(role, text, options = {}) {
   conversation.messages.push(message);
   conversation.updatedAt = message.createdAt;
 
-  if (role === "user" && conversation.title === "Chat mới" && text.trim()) {
+  if (role === "user" && conversation.title === "Đoạn chat mới" && text.trim()) {
     conversation.title = text.trim().replace(/\s+/g, " ").slice(0, 48);
   }
 
   saveConversations();
   renderConversationList();
   el.messageList.querySelector(".welcome")?.remove();
-  const rendered = renderMessage(message);
+  const article = renderMessage(message);
   scrollBottom();
-  return { message, ...rendered };
+  return { message, article };
 }
 
 function updateMessage(message, text) {
   message.text = text;
-  message.updatedAt = new Date().toISOString();
   saveConversations();
-  const node = el.messageList.querySelector(`[data-message-id="${message.id}"] .message-text`);
-  if (node) node.textContent = text;
+  const body = el.messageList.querySelector(`[data-message-id="${message.id}"] .prose`);
+  if (body) setMessageBody(body, message);
 }
 
 function addTool(message, text) {
-  if (!message.tools.includes(text)) {
-    message.tools.push(text);
-    saveConversations();
-  }
+  if (message.tools.includes(text)) return;
+  message.tools.push(text);
+  saveConversations();
   const article = el.messageList.querySelector(`[data-message-id="${message.id}"]`);
   const tools = article?.querySelector(".tool-list");
   if (!tools) return;
@@ -390,21 +538,36 @@ function notice(text) {
   addMessage("assistant", text, { meta: "Thông báo" });
 }
 
+function deleteConversation(id) {
+  state.conversations = state.conversations.filter((c) => c.id !== id);
+  if (!state.conversations.length) createConversation({ save: false });
+  if (!state.conversations.some((c) => c.id === state.activeConversationId)) {
+    state.activeConversationId = state.conversations[0].id;
+  }
+  saveConversations();
+  renderApp();
+}
+
+/* ---------- images ---------- */
 function renderImages() {
   el.imagePreviewList.innerHTML = "";
   el.clearImages.classList.toggle("hidden", state.uploadedImages.length === 0);
-
-  for (const image of state.uploadedImages) {
+  state.uploadedImages.forEach((image, index) => {
     const card = document.createElement("div");
     card.className = "image-card";
     const img = document.createElement("img");
     img.src = image.dataUrl;
     img.alt = image.name;
-    const label = document.createElement("span");
-    label.textContent = image.name;
-    card.append(img, label);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "✕";
+    remove.addEventListener("click", () => {
+      state.uploadedImages.splice(index, 1);
+      renderImages();
+    });
+    card.append(img, remove);
     el.imagePreviewList.append(card);
-  }
+  });
 }
 
 function readImage(file) {
@@ -428,7 +591,6 @@ async function addImages(files) {
   const list = Array.from(files || []);
   const slots = MAX_IMAGES - state.uploadedImages.length;
   if (slots <= 0) return notice(`Cursor hỗ trợ tối đa ${MAX_IMAGES} ảnh mỗi prompt.`);
-
   for (const file of list.slice(0, slots)) {
     if (!IMAGE_TYPES.has(file.type)) {
       notice(`Bỏ qua ${file.name}: định dạng ảnh chưa hỗ trợ.`);
@@ -440,20 +602,37 @@ async function addImages(files) {
     }
     state.uploadedImages.push(await readImage(file));
   }
-
   if (list.length > slots) notice(`Chỉ lấy ${slots} ảnh đầu tiên.`);
   renderImages();
   el.imageInput.value = "";
 }
 
-function applyCodeOpen() {
-  el.appShell.classList.toggle("code-open", state.codeOpen);
-  localStorage.setItem(store.codeOpen, String(state.codeOpen));
+/* ---------- code workspace ---------- */
+function setCodeOpen(open) {
+  state.codeOpen = open;
+  el.appShell.classList.toggle("code-open", open);
 }
 
-function openCodePanel() {
-  state.codeOpen = true;
-  applyCodeOpen();
+function normalizeLanguage(language) {
+  const map = { js: "javascript", ts: "typescript", py: "python", md: "markdown", sh: "bash" };
+  const lower = (language || "text").toLowerCase();
+  return map[lower] || lower;
+}
+
+function languageToExtension(language) {
+  const map = {
+    javascript: "js",
+    typescript: "ts",
+    jsx: "jsx",
+    tsx: "tsx",
+    python: "py",
+    html: "html",
+    css: "css",
+    json: "json",
+    markdown: "md",
+    bash: "sh",
+  };
+  return map[normalizeLanguage(language)] || "txt";
 }
 
 function renderTabs() {
@@ -462,18 +641,36 @@ function renderTabs() {
   if (!state.files.length) el.includeCode.checked = false;
 
   for (const file of state.files) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `file-tab${file.id === state.activeFileId ? " active" : ""}`;
-    button.textContent = file.name || "untitled";
-    button.addEventListener("click", () => {
+    const tab = document.createElement("div");
+    tab.className = `file-tab${file.id === state.activeFileId ? " active" : ""}`;
+
+    const name = document.createElement("button");
+    name.type = "button";
+    name.className = "ft-name";
+    name.textContent = file.name || "untitled";
+    name.addEventListener("click", () => {
       state.activeFileId = file.id;
       saveFiles();
       renderTabs();
       renderEditor();
-      openCodePanel();
+      setCodeOpen(true);
     });
-    el.fileTabs.append(button);
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "ft-close";
+    close.textContent = "✕";
+    close.addEventListener("click", (event) => {
+      event.stopPropagation();
+      state.files = state.files.filter((f) => f.id !== file.id);
+      if (state.activeFileId === file.id) state.activeFileId = state.files[0]?.id || "";
+      saveFiles();
+      renderTabs();
+      renderEditor();
+    });
+
+    tab.append(name, close);
+    el.fileTabs.append(tab);
   }
 }
 
@@ -486,10 +683,10 @@ function renderEditor() {
     el.codeEditor.value = "";
     return;
   }
-
   el.codeEmpty.classList.add("hidden");
   el.editorShell.classList.remove("hidden");
   el.fileName.value = file.name;
+  el.language.value = state.files.find((f) => f.id === file.id) ? file.language : "text";
   el.language.value = file.language;
   el.codeEditor.value = file.content;
 }
@@ -506,7 +703,7 @@ function newFile(name, language = "typescript", content = "") {
   const file = {
     id: uid("file"),
     name: name || `scratch-${state.files.length + 1}.ts`,
-    language,
+    language: normalizeLanguage(language),
     content,
   };
   state.files.push(file);
@@ -515,7 +712,7 @@ function newFile(name, language = "typescript", content = "") {
   saveFiles();
   renderTabs();
   renderEditor();
-  openCodePanel();
+  setCodeOpen(true);
   return file;
 }
 
@@ -525,11 +722,12 @@ function insertCode() {
   el.prompt.value += [
     "",
     `File: ${file.name}`,
-    `\`\`\`${file.language}`,
+    "```" + file.language,
     file.content,
     "```",
     "",
   ].join("\n");
+  autoGrow();
   el.prompt.focus();
 }
 
@@ -540,15 +738,15 @@ function promptWithCode(text) {
     text,
     "",
     "---",
-    "Code context from the side editor:",
+    "Code context (side editor):",
     `File: ${file.name}`,
-    `Language: ${file.language}`,
-    `\`\`\`${file.language}`,
+    "```" + file.language,
     file.content,
     "```",
   ].join("\n");
 }
 
+/* ---------- API ---------- */
 function headers(json = true) {
   const out = {};
   if (json) out["Content-Type"] = "application/json";
@@ -576,11 +774,11 @@ async function cursorJson(path, payload, method = "POST") {
   return response.json();
 }
 
-function encodeModelSelection(selection) {
+function encodeModel(selection) {
   return JSON.stringify({ id: selection.id, params: selection.params || [] });
 }
 
-function decodeModelSelection(value) {
+function decodeModel(value) {
   if (!value) return null;
   try {
     const parsed = JSON.parse(value);
@@ -591,38 +789,39 @@ function decodeModelSelection(value) {
   return null;
 }
 
-function renderModelOptions(models, sourceLabel) {
-  const previousValue = el.model.value;
+function syncModelBadge() {
+  const selected = el.model.options[el.model.selectedIndex];
+  el.modelBadge.textContent = selected && selected.value ? selected.textContent : "Default";
+}
+
+function renderModelOptions(models, source) {
+  const previous = el.model.value;
   el.model.innerHTML = "";
 
-  const defaultOption = document.createElement("option");
-  defaultOption.value = "";
-  defaultOption.textContent = "Default";
-  el.model.append(defaultOption);
+  const def = document.createElement("option");
+  def.value = "";
+  def.textContent = "Default";
+  el.model.append(def);
 
   for (const model of models) {
-    const variants = Array.isArray(model.variants) && model.variants.length
-      ? model.variants
-      : [{ displayName: model.displayName, params: model.params || [] }];
-
+    const variants =
+      Array.isArray(model.variants) && model.variants.length
+        ? model.variants
+        : [{ displayName: model.displayName, params: model.params || [] }];
     for (const variant of variants) {
       const option = document.createElement("option");
-      option.value = encodeModelSelection({
-        id: variant.id || model.id,
-        params: variant.params || [],
-      });
+      option.value = encodeModel({ id: variant.id || model.id, params: variant.params || [] });
       option.textContent =
         variant.displayName && variant.displayName !== model.displayName
-          ? `${model.displayName} - ${variant.displayName}`
+          ? `${model.displayName} · ${variant.displayName}`
           : model.displayName;
       el.model.append(option);
     }
   }
 
-  if ([...el.model.options].some((option) => option.value === previousValue)) {
-    el.model.value = previousValue;
-  }
-  el.modelStatus.textContent = sourceLabel;
+  if ([...el.model.options].some((o) => o.value === previous)) el.model.value = previous;
+  el.modelStatus.textContent = source;
+  syncModelBadge();
 }
 
 async function loadModels() {
@@ -642,17 +841,12 @@ function imagePayload(images) {
 }
 
 function createPayload(text, images) {
-  const payload = {
-    prompt: { text, images },
-    mode: el.mode.value,
-  };
-
-  const selectedModel = decodeModelSelection(el.model.value);
-  if (selectedModel) {
-    payload.model = { id: selectedModel.id };
-    if (selectedModel.params?.length) payload.model.params = selectedModel.params;
+  const payload = { prompt: { text, images }, mode: el.mode.value };
+  const model = decodeModel(el.model.value);
+  if (model) {
+    payload.model = { id: model.id };
+    if (model.params?.length) payload.model.params = model.params;
   }
-
   const repoUrl = el.repoUrl.value.trim();
   if (repoUrl) {
     const repo = { url: repoUrl };
@@ -662,7 +856,6 @@ function createPayload(text, images) {
     payload.autoCreatePR = el.autoPr.checked;
     payload.workOnCurrentBranch = el.currentBranch.checked;
   }
-
   return payload;
 }
 
@@ -672,7 +865,6 @@ async function createAgent(text, images) {
   conversation.agentId = result.agent?.id || "";
   conversation.runId = result.run?.id || result.agent?.latestRunId || "";
   conversation.agentUrl = result.agent?.url || "";
-  conversation.updatedAt = new Date().toISOString();
   saveConversations();
   updateMeta();
   return result.run;
@@ -685,85 +877,12 @@ async function followUp(text, images) {
     mode: el.mode.value,
   });
   conversation.runId = run.id;
-  conversation.updatedAt = new Date().toISOString();
   saveConversations();
   updateMeta();
   return run;
 }
 
-function languageToExtension(language) {
-  const normalized = (language || "text").toLowerCase();
-  const map = {
-    js: "js",
-    javascript: "js",
-    ts: "ts",
-    typescript: "ts",
-    jsx: "jsx",
-    tsx: "tsx",
-    py: "py",
-    python: "py",
-    html: "html",
-    css: "css",
-    json: "json",
-    md: "md",
-    markdown: "md",
-    sh: "sh",
-    bash: "sh",
-  };
-  return map[normalized] || "txt";
-}
-
-function normalizeLanguage(language) {
-  const normalized = (language || "text").toLowerCase();
-  if (normalized === "js") return "javascript";
-  if (normalized === "ts") return "typescript";
-  if (normalized === "py") return "python";
-  if (normalized === "md") return "markdown";
-  return normalized;
-}
-
-function codeHash(language, content) {
-  let hash = 0;
-  const input = `${language}\n${content}`;
-  for (let index = 0; index < input.length; index += 1) {
-    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
-  }
-  return hash.toString(36);
-}
-
-function syncCodeBlocksFromAssistant(text) {
-  const matches = text.matchAll(/```([^\n`]*)\n([\s\S]*?)```/g);
-  for (const match of matches) {
-    const rawLanguage = match[1].trim().split(/\s+/)[0] || "text";
-    const content = match[2].trim();
-    if (!content) continue;
-
-    const hash = codeHash(rawLanguage, content);
-    if (state.importedCodeBlocks.has(hash)) continue;
-    state.importedCodeBlocks.add(hash);
-
-    const language = normalizeLanguage(rawLanguage);
-    const extension = languageToExtension(language);
-    newFile(`agent-code-${state.files.length + 1}.${extension}`, language, content);
-  }
-}
-
-function addOrUpdateTool(message, calls, data) {
-  const id = data.callId || data.call_id || data.name || uid("tool");
-  const text = `${data.name || "tool"} · ${data.status || "running"}`;
-  if (calls.get(id) === text) return;
-  calls.set(id, text);
-  addTool(message, text);
-}
-
-function addGitSummary(message, data) {
-  if (!data?.git?.branches?.length) return;
-  addTool(
-    message,
-    `Git: ${data.git.branches.map((branch) => branch.prUrl || branch.branch || branch.repoUrl).join(" | ")}`,
-  );
-}
-
+/* ---------- streaming ---------- */
 function parseSse(block) {
   const event = { type: "message", data: "" };
   const data = [];
@@ -777,6 +896,14 @@ function parseSse(block) {
   return event;
 }
 
+function gitSummary(message, data) {
+  if (!data?.git?.branches?.length) return;
+  addTool(
+    message,
+    `Git: ${data.git.branches.map((b) => b.prUrl || b.branch || b.repoUrl).join(" | ")}`,
+  );
+}
+
 async function getRun(agentId, runId) {
   return cursorJson(
     `/v1/agents/${encodeURIComponent(agentId)}/runs/${encodeURIComponent(runId)}`,
@@ -785,7 +912,7 @@ async function getRun(agentId, runId) {
   );
 }
 
-async function streamRun(agentId, runId, assistantMessage) {
+async function streamRun(agentId, runId, message) {
   const response = await fetch(
     `/api/cursor/v1/agents/${encodeURIComponent(agentId)}/runs/${encodeURIComponent(runId)}/stream`,
     { method: "GET", headers: { ...headers(false), Accept: "text/event-stream" } },
@@ -794,8 +921,8 @@ async function streamRun(agentId, runId, assistantMessage) {
   if (!response.ok) {
     if (response.status === 410) {
       const run = await getRun(agentId, runId);
-      updateMessage(assistantMessage, run.result || "Stream đã hết hạn.");
-      addGitSummary(assistantMessage, run);
+      updateMessage(message, run.result || "Stream đã hết hạn.");
+      gitSummary(message, run);
       setRunStatus(run.status || "FINISHED");
       return;
     }
@@ -818,7 +945,6 @@ async function streamRun(agentId, runId, assistantMessage) {
     for (const block of blocks) {
       const event = parseSse(block);
       if (!event.data) continue;
-
       let data;
       try {
         data = JSON.parse(event.data);
@@ -830,32 +956,35 @@ async function streamRun(agentId, runId, assistantMessage) {
         setRunStatus(data.status || "RUNNING");
       } else if (event.type === "assistant") {
         text += data.text || "";
-        updateMessage(assistantMessage, text || "Đang xử lý...");
-        syncCodeBlocksFromAssistant(text);
+        updateMessage(message, text);
         scrollBottom();
       } else if (event.type === "tool_call") {
-        addOrUpdateTool(assistantMessage, calls, data);
+        const key = data.callId || data.call_id || data.name || uid("tool");
+        const line = `${data.name || "tool"} · ${data.status || "running"}`;
+        if (calls.get(key) !== line) {
+          calls.set(key, line);
+          addTool(message, line);
+        }
       } else if (event.type === "thinking") {
         setRunStatus("THINKING");
       } else if (event.type === "result") {
-        if (!text && data.text) updateMessage(assistantMessage, data.text);
-        syncCodeBlocksFromAssistant(text || data.text || "");
-        addGitSummary(assistantMessage, data);
+        if (!text && data.text) updateMessage(message, data.text);
+        gitSummary(message, data);
         setRunStatus(data.status || "FINISHED");
       } else if (event.type === "error") {
-        updateMessage(assistantMessage, `Lỗi stream: ${data.message || data.code || "unknown"}`);
+        updateMessage(message, `Lỗi stream: ${data.message || data.code || "unknown"}`);
         setRunStatus("ERROR");
       }
     }
   }
 }
 
+/* ---------- send ---------- */
 function setBusy(busy) {
   state.busy = busy;
   el.send.disabled = busy;
   el.prompt.disabled = busy;
   el.imageInput.disabled = busy;
-  el.send.textContent = busy ? "..." : "Gửi";
 }
 
 async function send(event) {
@@ -867,18 +996,20 @@ async function send(event) {
   const hasCode = el.includeCode.checked && file?.content.trim();
   if (!rawText && !state.uploadedImages.length && !hasCode) return el.prompt.focus();
 
-  updateConversationFromForm();
   const conversation = activeConversation();
+  conversation.agentId = el.agentId.value.trim();
+
   const images = [...state.uploadedImages];
-  const promptText = promptWithCode(rawText || "Hãy xem ảnh/context code và đề xuất bước tiếp theo.");
+  const promptText = promptWithCode(rawText || "Xem ảnh/context code và đề xuất bước tiếp theo.");
   const promptImages = imagePayload(images);
 
   addMessage("user", rawText || "(gửi ảnh hoặc code context)", { images });
   el.prompt.value = "";
+  autoGrow();
   state.uploadedImages = [];
   renderImages();
 
-  const assistant = addMessage("assistant", "Đang tạo run...");
+  const assistant = addMessage("assistant", "");
   try {
     setBusy(true);
     setStatus(el.connection, "calling", "warn");
@@ -904,13 +1035,16 @@ async function send(event) {
   }
 }
 
+/* ---------- misc ---------- */
+function autoGrow() {
+  el.prompt.style.height = "auto";
+  el.prompt.style.height = `${Math.min(el.prompt.scrollHeight, 220)}px`;
+}
+
 function rememberKey() {
   localStorage.setItem(store.remember, String(el.rememberKey.checked));
-  if (el.rememberKey.checked) {
-    localStorage.setItem(store.key, el.apiKey.value.trim());
-  } else {
-    localStorage.removeItem(store.key);
-  }
+  if (el.rememberKey.checked) localStorage.setItem(store.key, el.apiKey.value.trim());
+  else localStorage.removeItem(store.key);
 }
 
 function initKey() {
@@ -926,10 +1060,32 @@ function clearActiveChat() {
   conversation.agentId = "";
   conversation.runId = "";
   conversation.agentUrl = "";
-  conversation.title = "Chat mới";
-  conversation.updatedAt = new Date().toISOString();
+  conversation.title = "Đoạn chat mới";
   saveConversations();
   renderApp();
+}
+
+function handleCodeBlockClick(event) {
+  const block = event.target.closest(".code-block");
+  if (!block) return;
+  const code = block.querySelector("code")?.textContent || "";
+  const lang = block.dataset.lang || "text";
+
+  if (event.target.closest(".code-copy")) {
+    navigator.clipboard.writeText(code);
+    const button = event.target.closest(".code-copy");
+    const original = button.textContent;
+    button.textContent = "Đã copy";
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1200);
+    return;
+  }
+
+  if (event.target.closest(".code-open")) {
+    const ext = languageToExtension(lang);
+    newFile(`agent-code-${state.files.length + 1}.${ext}`, lang, code);
+  }
 }
 
 function bind() {
@@ -940,40 +1096,51 @@ function bind() {
     window.clearTimeout(modelLoadTimer);
     modelLoadTimer = window.setTimeout(loadModels, 350);
   });
+  el.agentId.addEventListener("input", () => {
+    const conversation = activeConversation();
+    if (!conversation) return;
+    conversation.agentId = el.agentId.value.trim();
+    saveConversations();
+  });
 
-  el.agentId.addEventListener("input", updateConversationFromForm);
   el.newChat.addEventListener("click", () => {
     createConversation();
     renderApp();
     el.prompt.focus();
   });
   el.clearAllChats.addEventListener("click", () => {
-    if (!window.confirm("Xoá toàn bộ đoạn chat đã lưu trên trình duyệt này?")) return;
+    if (!window.confirm("Xoá toàn bộ đoạn chat đã lưu?")) return;
     state.conversations = [];
-    createConversation({ activate: true, save: false });
+    createConversation({ save: false });
     saveConversations();
     renderApp();
   });
   el.clearChat.addEventListener("click", clearActiveChat);
+
   el.composer.addEventListener("submit", send);
-  el.prompt.addEventListener("input", () => {
-    el.prompt.style.height = "auto";
-    el.prompt.style.height = `${Math.min(el.prompt.scrollHeight, 210)}px`;
+  el.prompt.addEventListener("input", autoGrow);
+  el.prompt.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      el.composer.requestSubmit();
+    }
   });
+
   el.imageInput.addEventListener("change", (event) => addImages(event.target.files));
   el.clearImages.addEventListener("click", () => {
     state.uploadedImages = [];
     renderImages();
   });
-  el.toggleCode.addEventListener("click", () => {
-    state.codeOpen = !state.codeOpen;
-    applyCodeOpen();
+
+  el.model.addEventListener("change", syncModelBadge);
+
+  el.toggleCode.addEventListener("click", () => setCodeOpen(!state.codeOpen));
+  el.closeCode.addEventListener("click", () => setCodeOpen(false));
+  el.codeScrim.addEventListener("click", () => setCodeOpen(false));
+  el.newFile.addEventListener("click", () => {
+    newFile();
+    el.fileName.focus();
   });
-  el.closeCode.addEventListener("click", () => {
-    state.codeOpen = false;
-    applyCodeOpen();
-  });
-  el.newFile.addEventListener("click", () => newFile());
   el.fileName.addEventListener("input", () => updateFile({ name: el.fileName.value }));
   el.language.addEventListener("change", () => updateFile({ language: el.language.value }));
   el.codeEditor.addEventListener("input", () => updateFile({ content: el.codeEditor.value }));
@@ -981,13 +1148,19 @@ function bind() {
     const file = activeFile();
     if (!file) return notice("Chưa có tab code để copy.");
     await navigator.clipboard.writeText(file.content);
-    notice("Đã copy code trong tab đang mở.");
   });
   el.insertPrompt.addEventListener("click", insertCode);
+
+  el.messageList.addEventListener("click", handleCodeBlockClick);
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.codeOpen) setCodeOpen(false);
+  });
 }
 
 initKey();
 loadModels();
 renderApp();
 renderImages();
+autoGrow();
 bind();
