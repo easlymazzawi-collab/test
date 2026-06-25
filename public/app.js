@@ -1092,6 +1092,17 @@ async function streamRun(agentId, runId, message) {
   let finished = false;
   let attempt = 0;
 
+  const startedAt = Date.now();
+  let pendingLabel = state.activeRun && activeConversation()?.runId === runId
+    ? "Đang chạy trên cloud…"
+    : "Đang khởi tạo agent trên cloud…";
+  const pendingTimer = setInterval(() => {
+    if (text) return;
+    const seconds = Math.floor((Date.now() - startedAt) / 1000);
+    setPending(message, `${pendingLabel} · ${seconds}s`);
+  }, 1000);
+  const stopTimer = () => clearInterval(pendingTimer);
+
   const handle = (event) => {
     if (event.id) lastEventId = event.id;
     if (!event.data) return;
@@ -1104,7 +1115,8 @@ async function streamRun(agentId, runId, message) {
 
     if (event.type === "status") {
       setRunStatus(data.status || "RUNNING");
-      if (!text) setPending(message, friendlyStatus(data.status));
+      pendingLabel = friendlyStatus(data.status);
+      if (!text) setPending(message, pendingLabel);
     } else if (event.type === "assistant") {
       text += data.text || "";
       message.text = text;
@@ -1118,7 +1130,8 @@ async function streamRun(agentId, runId, message) {
       }
     } else if (event.type === "thinking") {
       setRunStatus("THINKING");
-      if (!text) setPending(message, friendlyStatus("THINKING"));
+      pendingLabel = friendlyStatus("THINKING");
+      if (!text) setPending(message, pendingLabel);
     } else if (event.type === "result") {
       if (data.text) {
         text = data.text;
@@ -1161,6 +1174,7 @@ async function streamRun(agentId, runId, message) {
         lastEventId = "";
         continue;
       }
+      stopTimer();
       throw new Error(await errorText(response));
     }
 
@@ -1185,6 +1199,8 @@ async function streamRun(agentId, runId, message) {
 
     if (!finished && !controller.signal.aborted) await sleep(500);
   }
+
+  stopTimer();
 
   if (!text && !controller.signal.aborted) {
     try {
@@ -1228,12 +1244,17 @@ async function cancelActiveRun() {
 }
 
 /* ---------- send ---------- */
+const DEFAULT_PLACEHOLDER = el.prompt.getAttribute("placeholder") || "";
+
 function setBusy(busy) {
   state.busy = busy;
   el.send.classList.toggle("hidden", busy);
   el.stop.classList.toggle("hidden", !busy);
   el.prompt.disabled = busy;
   el.imageInput.disabled = busy;
+  el.prompt.placeholder = busy
+    ? "Đang chờ agent trả lời… (bấm ■ để dừng)"
+    : DEFAULT_PLACEHOLDER;
 }
 
 async function send(event) {
