@@ -74,6 +74,7 @@ const el = {
   model: $("modelInput"),
   modelStatus: $("modelStatus"),
   send: $("sendButton"),
+  stop: $("stopButton"),
   toggleCode: $("toggleCodeButton"),
   closeCode: $("closeCodeButton"),
   codeScrim: $("codeScrim"),
@@ -100,6 +101,7 @@ const state = {
   activeFileId: localStorage.getItem(store.activeFile) || "",
   codeOpen: false,
   busy: false,
+  activeRun: null,
 };
 
 let modelLoadTimer;
@@ -1026,16 +1028,34 @@ async function followUp(text, images) {
 
 /* ---------- streaming ---------- */
 function parseSse(block) {
-  const event = { type: "message", data: "" };
+  const event = { type: "message", data: "", id: "" };
   const data = [];
   for (const raw of block.split(/\r?\n/)) {
     const line = raw.trimEnd();
     if (!line || line.startsWith(":")) continue;
     if (line.startsWith("event:")) event.type = line.slice(6).trim();
     if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+    if (line.startsWith("id:")) event.id = line.slice(3).trim();
   }
   event.data = data.join("\n");
   return event;
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+let paintHandle = 0;
+function paintMessage(message) {
+  if (paintHandle) return;
+  paintHandle = requestAnimationFrame(() => {
+    paintHandle = 0;
+    const body = el.messageList.querySelector(`[data-message-id="${message.id}"] .prose`);
+    if (body) setMessageBody(body, message);
+    scrollBottom();
+  });
+}
+
+function streamUrl(agentId, runId) {
+  return `/api/cursor/v1/agents/${encodeURIComponent(agentId)}/runs/${encodeURIComponent(runId)}/stream`;
 }
 
 function gitSummary(message, data) {
@@ -1055,78 +1075,155 @@ async function getRun(agentId, runId) {
 }
 
 async function streamRun(agentId, runId, message) {
-  const response = await fetch(
-    `/api/cursor/v1/agents/${encodeURIComponent(agentId)}/runs/${encodeURIComponent(runId)}/stream`,
-    { method: "GET", headers: { ...headers(false), Accept: "text/event-stream" } },
-  );
+  const calls = new Map();
+  const controller = new AbortController();
+  state.activeRun = { agentId, runId, controller };
 
-  if (!response.ok) {
-    if (response.status === 410) {
-      const run = await getRun(agentId, runId);
-      updateMessage(message, run.result || "Stream đã hết hạn.");
-      gitSummary(message, run);
-      setRunStatus(run.status || "FINISHED");
-      return;
+  let text = "";
+  let lastEventId = "";
+  let finished = false;
+  let attempt = 0;
+
+  const handle = (event) => {
+    if (event.id) lastEventId = event.id;
+    if (!event.data) return;
+    let data;
+    try {
+      data = JSON.parse(event.data);
+    } catch {
+      data = { text: event.data };
     }
-    throw new Error(await errorText(response));
+
+    if (event.type === "status") {
+      setRunStatus(data.status || "RUNNING");
+      if (!text) setPending(message, friendlyStatus(data.status));
+    } else if (event.type === "assistant") {
+      text += data.text || "";
+      message.text = text;
+      paintMessage(message);
+    } else if (event.type === "tool_call") {
+      const key = data.callId || data.call_id || data.name || uid("tool");
+      const line = `${data.name || "tool"} · ${data.status || "running"}`;
+      if (calls.get(key) !== line) {
+        calls.set(key, line);
+        addTool(message, line);
+      }
+    } else if (event.type === "thinking") {
+      setRunStatus("THINKING");
+      if (!text) setPending(message, friendlyStatus("THINKING"));
+    } else if (event.type === "result") {
+      if (data.text) {
+        text = data.text;
+        message.text = text;
+        paintMessage(message);
+      }
+      gitSummary(message, data);
+      setRunStatus(data.status || "FINISHED");
+      finished = true;
+    } else if (event.type === "error") {
+      message.text = `⚠️ Lỗi stream: ${extractMessage(data) || "unknown"}`;
+      setRunStatus("ERROR");
+      finished = true;
+    } else if (event.type === "done") {
+      finished = true;
+    }
+  };
+
+  while (!finished && attempt < 5) {
+    attempt += 1;
+    const reqHeaders = { ...headers(false), Accept: "text/event-stream" };
+    if (lastEventId) reqHeaders["Last-Event-ID"] = lastEventId;
+
+    let response;
+    try {
+      response = await fetch(streamUrl(agentId, runId), {
+        method: "GET",
+        headers: reqHeaders,
+        signal: controller.signal,
+      });
+    } catch {
+      if (controller.signal.aborted) break;
+      await sleep(Math.min(8000, 1000 * 2 ** (attempt - 1)));
+      continue;
+    }
+
+    if (!response.ok) {
+      if (response.status === 410) break;
+      if (response.status === 400 && lastEventId) {
+        lastEventId = "";
+        continue;
+      }
+      throw new Error(await errorText(response));
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split(/\n\n/);
+        buffer = blocks.pop() || "";
+        for (const block of blocks) handle(parseSse(block));
+        if (finished) break;
+      }
+    } catch {
+      if (controller.signal.aborted) break;
+      await sleep(800);
+      continue;
+    }
+
+    if (!finished && !controller.signal.aborted) await sleep(500);
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  const calls = new Map();
-  let buffer = "";
-  let text = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const blocks = buffer.split(/\n\n/);
-    buffer = blocks.pop() || "";
-
-    for (const block of blocks) {
-      const event = parseSse(block);
-      if (!event.data) continue;
-      let data;
-      try {
-        data = JSON.parse(event.data);
-      } catch {
-        data = { text: event.data };
+  if (!text && !controller.signal.aborted) {
+    try {
+      const run = await getRun(agentId, runId);
+      if (run?.result) {
+        text = run.result;
+        message.text = text;
       }
-
-      if (event.type === "status") {
-        setRunStatus(data.status || "RUNNING");
-        if (!text) setPending(message, friendlyStatus(data.status));
-      } else if (event.type === "assistant") {
-        text += data.text || "";
-        updateMessage(message, text);
-        scrollBottom();
-      } else if (event.type === "tool_call") {
-        const key = data.callId || data.call_id || data.name || uid("tool");
-        const line = `${data.name || "tool"} · ${data.status || "running"}`;
-        if (calls.get(key) !== line) {
-          calls.set(key, line);
-          addTool(message, line);
-        }
-      } else if (event.type === "thinking") {
-        setRunStatus("THINKING");
-        if (!text) setPending(message, friendlyStatus("THINKING"));
-      } else if (event.type === "result") {
-        if (!text && data.text) updateMessage(message, data.text);
-        gitSummary(message, data);
-        setRunStatus(data.status || "FINISHED");
-      } else if (event.type === "error") {
-        updateMessage(message, `Lỗi stream: ${data.message || data.code || "unknown"}`);
-        setRunStatus("ERROR");
-      }
+      gitSummary(message, run);
+      setRunStatus(run?.status || "FINISHED");
+    } catch {
+      // keep whatever we have
     }
+  }
+
+  if (controller.signal.aborted && !text) message.text = "⏹ Đã dừng.";
+
+  const body = el.messageList.querySelector(`[data-message-id="${message.id}"] .prose`);
+  if (body) setMessageBody(body, message);
+  saveConversations();
+  state.activeRun = null;
+}
+
+async function cancelActiveRun() {
+  const run = state.activeRun;
+  if (!run) return;
+  setRunStatus("CANCELLING");
+  try {
+    run.controller.abort();
+  } catch {
+    // ignore
+  }
+  try {
+    await cursorJson(
+      `/v1/agents/${encodeURIComponent(run.agentId)}/runs/${encodeURIComponent(run.runId)}/cancel`,
+      {},
+    );
+  } catch {
+    // already terminal or not cancellable
   }
 }
 
 /* ---------- send ---------- */
 function setBusy(busy) {
   state.busy = busy;
-  el.send.disabled = busy;
+  el.send.classList.toggle("hidden", busy);
+  el.stop.classList.toggle("hidden", !busy);
   el.prompt.disabled = busy;
   el.imageInput.disabled = busy;
 }
@@ -1338,6 +1435,7 @@ function bind() {
   el.clearChat.addEventListener("click", clearActiveChat);
 
   el.composer.addEventListener("submit", send);
+  el.stop.addEventListener("click", cancelActiveRun);
   el.prompt.addEventListener("input", autoGrow);
   el.prompt.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {

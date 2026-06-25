@@ -120,6 +120,7 @@ async function proxyCursorRequest(req, res, requestUrl) {
   });
 
   const responseHeaders = copyResponseHeaders(cursorResponse, res);
+  responseHeaders["X-Accel-Buffering"] = "no";
   res.writeHead(cursorResponse.status, responseHeaders);
 
   if (!cursorResponse.body) {
