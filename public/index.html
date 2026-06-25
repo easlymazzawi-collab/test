@@ -14,6 +14,14 @@
   </head>
   <body>
     <div class="app" id="appShell">
+      <div id="dropOverlay" class="drop-overlay">
+        <div class="drop-card">
+          <div class="drop-icon">🖼</div>
+          <strong>Thả ảnh vào đây</strong>
+          <span>PNG, JPEG, GIF, WEBP · tối đa 5 ảnh</span>
+        </div>
+      </div>
+
       <aside class="sidebar">
         <div class="brand">
           <div class="brand-mark">C</div>
@@ -128,7 +136,7 @@
             <textarea
               id="promptInput"
               rows="1"
-              placeholder="Nhắn cho Cursor Agent…  (Enter để gửi, Shift+Enter xuống dòng)"
+              placeholder="Nhắn cho Cursor Agent…  (Enter để gửi · Shift+Enter xuống dòng · kéo-thả hoặc dán ảnh)"
             ></textarea>
             <div class="composer-row">
               <div class="composer-left">

@@ -68,6 +68,7 @@ const el = {
   toggleCode: $("toggleCodeButton"),
   closeCode: $("closeCodeButton"),
   codeScrim: $("codeScrim"),
+  dropOverlay: $("dropOverlay"),
   fileTabs: $("fileTabs"),
   codeEmpty: $("codeEmptyState"),
   editorShell: $("editorShell"),
@@ -1065,6 +1066,49 @@ function clearActiveChat() {
   renderApp();
 }
 
+function isFileDrag(event) {
+  return Array.from(event.dataTransfer?.types || []).includes("Files");
+}
+
+function bindDropAndPaste() {
+  let depth = 0;
+
+  document.addEventListener("dragenter", (event) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    depth += 1;
+    el.appShell.classList.add("drag-active");
+  });
+
+  document.addEventListener("dragover", (event) => {
+    if (isFileDrag(event)) event.preventDefault();
+  });
+
+  document.addEventListener("dragleave", (event) => {
+    if (!isFileDrag(event)) return;
+    depth = Math.max(0, depth - 1);
+    if (depth === 0) el.appShell.classList.remove("drag-active");
+  });
+
+  document.addEventListener("drop", (event) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    depth = 0;
+    el.appShell.classList.remove("drag-active");
+    addImages(event.dataTransfer.files);
+  });
+
+  el.prompt.addEventListener("paste", (event) => {
+    const files = Array.from(event.clipboardData?.files || []).filter((file) =>
+      file.type.startsWith("image/"),
+    );
+    if (files.length) {
+      event.preventDefault();
+      addImages(files);
+    }
+  });
+}
+
 function handleCodeBlockClick(event) {
   const block = event.target.closest(".code-block");
   if (!block) return;
@@ -1164,3 +1208,4 @@ renderApp();
 renderImages();
 autoGrow();
 bind();
+bindDropAndPaste();
