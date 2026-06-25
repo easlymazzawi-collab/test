@@ -988,11 +988,12 @@ async function createAgent(text, images) {
 
 async function followUp(text, images) {
   const conversation = activeConversation();
-  const run = await cursorJson(`/v1/agents/${encodeURIComponent(conversation.agentId)}/runs`, {
+  const result = await cursorJson(`/v1/agents/${encodeURIComponent(conversation.agentId)}/runs`, {
     prompt: { text, images },
     mode: el.mode.value,
   });
-  conversation.runId = run.id;
+  const run = result.run || result;
+  conversation.runId = run.id || "";
   saveConversations();
   updateMeta();
   return run;
@@ -1138,6 +1139,11 @@ async function send(event) {
     conversation.runId = run?.id || conversation.runId;
     saveConversations();
     updateMeta();
+
+    if (!/^run-/.test(conversation.runId || "")) {
+      throw new Error("API không trả về run hợp lệ (thiếu run id).");
+    }
+
     setStatus(el.connection, "connected", "good");
     await streamRun(conversation.agentId, conversation.runId, assistant.message);
   } catch (error) {
