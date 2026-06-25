@@ -1329,7 +1329,12 @@ async function send(event) {
     setStatus(el.connection, "connected", "good");
     await streamRun(conversation.agentId, conversation.runId, assistant.message);
   } catch (error) {
-    const reason = error?.message || String(error) || "Lỗi không xác định";
+    let reason = error?.message || String(error) || "Lỗi không xác định";
+    if (/failed to fetch|networkerror|load failed/i.test(reason)) {
+      reason =
+        "Không kết nối được server local. Kiểm tra cửa sổ CMD còn chạy `node server.js` không, " +
+        "rồi thử lại. (Failed to fetch)";
+    }
     updateMessage(assistant.message, `⚠️ Không gửi được request: ${reason}`);
     setStatus(el.connection, "error", "bad");
     setRunStatus("ERROR");

@@ -128,7 +128,19 @@ async function proxyCursorRequest(req, res, requestUrl) {
     return;
   }
 
-  Readable.fromWeb(cursorResponse.body).pipe(res);
+  const upstream = Readable.fromWeb(cursorResponse.body);
+
+  const cleanup = () => {
+    if (!upstream.destroyed) upstream.destroy();
+  };
+
+  upstream.on("error", () => {
+    if (!res.writableEnded) res.end();
+  });
+  res.on("error", cleanup);
+  res.on("close", cleanup);
+
+  upstream.pipe(res);
 }
 
 async function serveStaticFile(req, res, requestUrl) {
@@ -175,6 +187,14 @@ const server = createServer(async (req, res) => {
       message: error.message || "Unexpected server error",
     });
   }
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught exception (server stays up):", error?.message || error);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection (server stays up):", reason?.message || reason);
 });
 
 server.listen(PORT, () => {
