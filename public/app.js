@@ -40,6 +40,7 @@ const store = {
   activeConversation: "cursorChatStudio.activeConversationId",
   files: "cursorChatStudio.files",
   activeFile: "cursorChatStudio.activeFileId",
+  model: "cursorChatStudio.model",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -926,7 +927,7 @@ function syncModelBadge() {
 }
 
 function renderModelOptions(models, source) {
-  const previous = el.model.value;
+  const saved = localStorage.getItem(store.model) || el.model.value;
   el.model.innerHTML = "";
 
   const def = document.createElement("option");
@@ -950,7 +951,14 @@ function renderModelOptions(models, source) {
     }
   }
 
-  if ([...el.model.options].some((o) => o.value === previous)) el.model.value = previous;
+  const options = [...el.model.options];
+  if (saved && options.some((o) => o.value === saved)) {
+    el.model.value = saved;
+  } else if (!saved) {
+    const fast = options.find((o) => /fast/i.test(o.textContent));
+    if (fast) el.model.value = fast.value;
+  }
+
   el.modelStatus.textContent = source;
   syncModelBadge();
 }
@@ -1342,7 +1350,10 @@ function bind() {
     renderImages();
   });
 
-  el.model.addEventListener("change", syncModelBadge);
+  el.model.addEventListener("change", () => {
+    localStorage.setItem(store.model, el.model.value);
+    syncModelBadge();
+  });
 
   el.toggleCode.addEventListener("click", () => setCodeOpen(!state.codeOpen));
   el.closeCode.addEventListener("click", () => setCodeOpen(false));
