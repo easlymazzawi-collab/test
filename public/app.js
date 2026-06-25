@@ -341,6 +341,21 @@ function setMessageBody(bodyEl, message) {
   }
 }
 
+function friendlyStatus(status) {
+  const map = {
+    CREATING: "Đang khởi tạo agent trên cloud…",
+    RUNNING: "Đang chạy…",
+    THINKING: "Đang suy nghĩ…",
+  };
+  return map[status] || "Đang xử lý…";
+}
+
+function setPending(message, label) {
+  const body = el.messageList.querySelector(`[data-message-id="${message.id}"] .prose`);
+  if (!body) return;
+  body.innerHTML = `<span class="pending"><span class="typing"><span></span><span></span><span></span></span><em>${escapeHtml(label)}</em></span>`;
+}
+
 function renderMessage(message) {
   const article = document.createElement("article");
   article.className = `message ${message.role}`;
@@ -1071,6 +1086,7 @@ async function streamRun(agentId, runId, message) {
 
       if (event.type === "status") {
         setRunStatus(data.status || "RUNNING");
+        if (!text) setPending(message, friendlyStatus(data.status));
       } else if (event.type === "assistant") {
         text += data.text || "";
         updateMessage(message, text);
@@ -1084,6 +1100,7 @@ async function streamRun(agentId, runId, message) {
         }
       } else if (event.type === "thinking") {
         setRunStatus("THINKING");
+        if (!text) setPending(message, friendlyStatus("THINKING"));
       } else if (event.type === "result") {
         if (!text && data.text) updateMessage(message, data.text);
         gitSummary(message, data);
@@ -1131,6 +1148,7 @@ async function send(event) {
     setBusy(true);
     setStatus(el.connection, "calling", "warn");
     setRunStatus("CREATING");
+    setPending(assistant.message, conversation.agentId ? "Đang gửi tới agent…" : "Đang khởi tạo agent trên cloud…");
 
     const run = conversation.agentId
       ? await followUp(promptText, promptImages)

@@ -813,6 +813,19 @@ a {
   border-radius: 11px;
 }
 
+/* Pending status */
+.pending {
+  display: inline-flex;
+  gap: 9px;
+  align-items: center;
+  color: var(--muted);
+  font-style: normal;
+}
+
+.pending em {
+  font-style: normal;
+}
+
 /* Typing */
 .typing {
   display: inline-flex;
